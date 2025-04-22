@@ -12,7 +12,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class MainViewModel : ViewModel() {
+/**
+ * A ViewModel class that manages the countdown functionality using SkyRouteMQ.
+ *
+ * @author Andre Suryana
+ */
+class CountDownViewModel : ViewModel() {
 
     private var countDownJob: Job? = null
 
@@ -29,7 +34,7 @@ class MainViewModel : ViewModel() {
         Log.i(TAG, "ViewModel cleared and timer cancelled")
     }
 
-    @Subscribe(topic = "countdown/start", threadMode = ThreadMode.POSTING)
+    @Subscribe(topic = "countdown/start", threadMode = ThreadMode.BACKGROUND)
     fun subscribeToStartCountdown(seconds: Int) {
         countDownJob?.cancel() // Cancel previous countdown if it exists
 

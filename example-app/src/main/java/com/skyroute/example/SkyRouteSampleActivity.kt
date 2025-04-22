@@ -10,10 +10,15 @@ import com.skyroute.api.ThreadMode
 import com.skyroute.example.databinding.ActivitySkyRouteSampleBinding
 import com.skyroute.example.model.RandomNames
 
+/**
+ * An example activity that demonstrates the usage of SkyRouteMQ.
+ *
+ * @author Andre Suryana
+ */
 class SkyRouteSampleActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySkyRouteSampleBinding
-    private lateinit var viewModel: MainViewModel
+    private lateinit var viewModel: CountDownViewModel
     private var isFirstAppendLog = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,7 +30,7 @@ class SkyRouteSampleActivity : AppCompatActivity() {
         SkyRoute.getDefault().register(this)
         setupPublishButton()
 
-        viewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        viewModel = ViewModelProvider(this)[CountDownViewModel::class.java]
         viewModel.countDown.observe(this) { seconds ->
             if (seconds == 0) appendLogs("Countdown finished!")
             else if (seconds > 0) appendLogs("Countdown: $seconds seconds remaining")
@@ -64,14 +69,10 @@ class SkyRouteSampleActivity : AppCompatActivity() {
 
     private fun appendLogs(message: String) {
         if (isFirstAppendLog) {
-            clearLogs()
+            binding.tvLogs.text = "" // Clear logs
             isFirstAppendLog = false
         }
         binding.tvLogs.append("$message\n")
-    }
-
-    private fun clearLogs() {
-        binding.tvLogs.text = ""
     }
 
     @Subscribe(topic = "test/abc", threadMode = ThreadMode.MAIN)

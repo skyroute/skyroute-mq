@@ -2,6 +2,11 @@ package com.skyroute.example.model
 
 import com.google.gson.annotations.SerializedName
 
+/**
+ * A data class representing a random names object.
+ *
+ * @author Andre Suryana
+ */
 data class RandomNames(
 
     @SerializedName("uid")

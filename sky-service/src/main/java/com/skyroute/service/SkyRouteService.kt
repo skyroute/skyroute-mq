@@ -16,13 +16,23 @@ import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
 import java.io.File
 
+/**
+ * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
+ * It allows other components to subscribe to topics, publish messages, and register callbacks for
+ * incoming messages.
+ *
+ * @author Andre Suryana
+ */
 class SkyRouteService : Service(), TopicMessenger {
 
     private val binder = SkyRouteBinder()
     private lateinit var mqttClient: MqttClient
 
-    private var onMessageArrivalCallback: ((topic: String, message: Any) -> Unit)? = null
+    private var onMessageArrivalCallback: MessageArrival? = null
 
+    /**
+     * Initializes the MQTT connection using configuration parameters from the service metadata.
+     */
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "SkyRouteService is created")
@@ -44,6 +54,11 @@ class SkyRouteService : Service(), TopicMessenger {
         initMqtt(mqttConfig)
     }
 
+    /**
+     * Initialize the MQTT client with the given configuration.
+     *
+     * @param mqttConfig The configuration parameters for connecting to the MQTT broker.
+     */
     private fun initMqtt(mqttConfig: MqttConfig) {
         try {
             Log.i(TAG, "MQTT init... url=${mqttConfig.brokerUrl}, client=${mqttConfig.clientId}")
@@ -82,6 +97,11 @@ class SkyRouteService : Service(), TopicMessenger {
         }
     }
 
+    /**
+     * Creates and returns the MQTT persistence directory.
+     *
+     * @return A persistence object for MQTT client session.
+     */
     private fun createPersistence(): MqttDefaultFilePersistence {
         val persistenceDir = File(cacheDir, "skyroute")
         if (!persistenceDir.exists()) persistenceDir.mkdirs()
@@ -89,6 +109,9 @@ class SkyRouteService : Service(), TopicMessenger {
         return MqttDefaultFilePersistence(persistenceDir.absolutePath)
     }
 
+    /**
+     * Stops the MQTT client and cleans up when the service is destroyed.
+     */
     override fun onDestroy() {
         super.onDestroy()
         try {
@@ -99,16 +122,26 @@ class SkyRouteService : Service(), TopicMessenger {
         Log.w(TAG, "SkyRouteService destroyed")
     }
 
+    /**
+     * Called when the service is started, returning a sticky service status.
+     *
+     * @param intent The start command intent.
+     * @param flags Additional flags.
+     * @param startId A unique start ID for the service.
+     * @return The start mode for the service.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Starting SkyRouteService! startId=$startId")
         return START_STICKY
     }
 
+    /**
+     * Binds the service to a client and return the binder for accessing the service's methods.
+     *
+     * @param intent The intent used to bind the service.
+     * @return A [SkyRouteBinder] instance that allows the client to interact with the service.
+     */
     override fun onBind(intent: Intent?): IBinder = binder
-
-    inner class SkyRouteBinder : Binder() {
-        fun getTopicMessenger(): TopicMessenger = this@SkyRouteService
-    }
 
     override fun subscribe(topic: String, qos: Int) {
         Log.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
@@ -135,8 +168,21 @@ class SkyRouteService : Service(), TopicMessenger {
         }
     }
 
-    override fun onMessageArrival(callback: (topic: String, message: Any) -> Unit) {
+    override fun onMessageArrival(callback: MessageArrival) {
         this.onMessageArrivalCallback = callback
+    }
+
+    /**
+     * A [Binder] subclass that allows clients to bind to the [SkyRouteService] and interact with its methods.
+     */
+    inner class SkyRouteBinder : Binder() {
+
+        /**
+         * Retrieves the [TopicMessenger] instance for interacting with the service.
+         *
+         * @return The [TopicMessenger] instance associated with the service.
+         */
+        fun getTopicMessenger(): TopicMessenger = this@SkyRouteService
     }
 
     companion object {

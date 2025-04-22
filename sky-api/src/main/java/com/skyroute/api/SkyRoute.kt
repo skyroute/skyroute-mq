@@ -19,6 +19,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.Volatile
 
+/**
+ * SkyRoute is the core class that manage MQTT connection and message subscriptions.
+ * It acts as an event bus for handling incoming MQTT messages and dispatching them
+ * to registered subscribers based on their subscribed topics.
+ *
+ * @author Andre Suryana
+ */
 class SkyRoute private constructor() {
 
     companion object {
@@ -28,6 +35,11 @@ class SkyRoute private constructor() {
         @Volatile
         private var instance: SkyRoute? = null
 
+        /**
+         * Gets the default instance of [SkyRoute].
+         *
+         * @return the singleton instance of [SkyRoute].
+         */
         fun getDefault(): SkyRoute = instance ?: synchronized(this) {
             instance ?: SkyRoute().also { instance = it }
         }
@@ -75,6 +87,11 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Initializes [SkyRoute] and binds it to the [SkyRouteService].
+     *
+     * @param context The application context to bind the service.
+     */
     fun init(context: Context) {
         if (bound) return
         context.applicationContext.run { // Using application context to avoid memory leaks
@@ -83,6 +100,11 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Registers a subscriber to receive messages for topics it is subscribed to.
+     *
+     * @param subscriber The subscriber object that has methods annotated with [Subscribe].
+     */
     fun register(subscriber: Any) {
         if (bound) {
             internalRegister(subscriber)
@@ -94,6 +116,11 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Internal method to register a subscriber.
+     *
+     * @param subscriber The subscriber object that has methods annotated with [Subscribe].
+     */
     private fun internalRegister(subscriber: Any) {
         val subscriberClass = subscriber::class.java
         val methods = subscriberClass.declaredMethods.filter { it.getAnnotation(Subscribe::class.java) != null }
@@ -134,6 +161,13 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Converts the received message to the expected type.
+     *
+     * @param message The message to be converted.
+     * @param expectedType The type that the message should be converted to.
+     * @return The converted message or null if deserialization fails.
+     */
     private fun convertMessage(message: Any, expectedType: Class<*>): Any? {
         return try {
             when (expectedType) {
@@ -151,6 +185,13 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Invokes the subscriber's method with the given message and thread mode.
+     *
+     * @param subscription The subscription that holds the subscriber method.
+     * @param message The message to pass to the subscriber's method.
+     * @param wildcards Any wildcards extracted from the topic.
+     */
     private fun invokeMethod(subscription: Subscription, message: Any, wildcards: List<String>? = null) {
         // Check if the subscription is still active
         if (!subscription.active) return
@@ -184,7 +225,7 @@ class SkyRoute private constructor() {
         }
 
         when (threadMode) {
-            ThreadMode.POSTING, ThreadMode.MAIN -> {
+            ThreadMode.MAIN -> {
                 if (Looper.myLooper() == Looper.getMainLooper()) {
                     invoke()
                 } else {
@@ -206,10 +247,21 @@ class SkyRoute private constructor() {
         }
     }
 
+    /**
+     * Checks if a subscriber is already registered.
+     *
+     * @param subscriber The subscriber to check.
+     * @return `true` if the subscriber is registered, `false` otherwise.
+     */
     fun isRegistered(subscriber: Any): Boolean {
         return typesBySubscriber.containsKey(subscriber)
     }
 
+    /**
+     * Unregisters a subscriber from receiving messages.
+     *
+     * @param subscriber The subscriber to unregister.
+     */
     fun unregister(subscriber: Any) {
         if (!isRegistered(subscriber)) {
             Log.w(TAG, "Subscriber $subscriber is not registered.")
@@ -231,19 +283,48 @@ class SkyRoute private constructor() {
         typesBySubscriber.remove(subscriber)
     }
 
+    /**
+     * Publishes a message to the specified topic.
+     *
+     * @param topic The topic to publish the message to.
+     * @param message The message to be published.
+     * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
+     */
+    @Throws(IllegalArgumentException::class)
     fun publish(topic: String, message: Any) {
         publish(topic, message, 0, false)
     }
 
+    /**
+     * Publishes a message with a specified Quality of Service (QoS) level.
+     *
+     * @param topic The topic to publish the message to.
+     * @param message The message to be published.
+     * @param qos The Quality of Service level for the message.
+     * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
+     */
+    @Throws(IllegalArgumentException::class)
     fun publish(topic: String, message: Any, qos: Int) {
         publish(topic, message, qos, false)
     }
 
+    /**
+     * Publishes a message with a specified Quality of Service (QoS) level and retain flag.
+     *
+     * @param topic The topic to publish the message to.
+     * @param message The message to be published.
+     * @param qos The Quality of Service level for the message.
+     * @param retain Whether the message should be retained after delivery.
+     * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
+     */
+    @Throws(IllegalArgumentException::class)
     fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
         if (!bound) {
             Log.w(TAG, "publish: Service not yet bound! Message will be queued")
             return
         }
+        if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
+
         topicMessenger?.publish(topic, message, qos, retain)
     }
 }
