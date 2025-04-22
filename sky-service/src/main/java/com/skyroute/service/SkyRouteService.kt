@@ -1,0 +1,145 @@
+package com.skyroute.service
+
+import android.app.Service
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Binder
+import android.os.IBinder
+import android.util.Log
+import com.skyroute.service.config.MqttConfig
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallback
+import org.eclipse.paho.client.mqttv3.MqttClient
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions
+import org.eclipse.paho.client.mqttv3.MqttMessage
+import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
+import java.io.File
+
+class SkyRouteService : Service(), TopicMessenger {
+
+    private val binder = SkyRouteBinder()
+    private lateinit var mqttClient: MqttClient
+
+    private var onMessageArrivalCallback: ((topic: String, message: Any) -> Unit)? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.i(TAG, "SkyRouteService is created")
+
+        val metaData = packageManager.getServiceInfo(
+            ComponentName(this, SkyRouteService::class.java),
+            PackageManager.GET_META_DATA
+        ).metaData
+
+        val brokerUrl = metaData?.getString("broker_url") ?: "tcp://127.0.0.1:1883"
+        val clientPrefix = metaData?.getString("client_prefix") ?: "skyroute"
+
+        val mqttConfig = MqttConfig(
+            brokerUrl = brokerUrl,
+            clientId = "$clientPrefix-client-${System.currentTimeMillis()}",
+            cleanSession = true,
+            automaticReconnect = true
+        )
+        initMqtt(mqttConfig)
+    }
+
+    private fun initMqtt(mqttConfig: MqttConfig) {
+        try {
+            Log.i(TAG, "MQTT init... url=${mqttConfig.brokerUrl}, client=${mqttConfig.clientId}")
+            mqttClient = MqttClient(mqttConfig.brokerUrl, mqttConfig.clientId, createPersistence())
+
+            val options = MqttConnectOptions().apply {
+                isCleanSession = mqttConfig.cleanSession
+                connectionTimeout = mqttConfig.connectionTimeout
+                keepAliveInterval = mqttConfig.keepAliveInterval
+                maxInflight = mqttConfig.maxInFlight
+                isAutomaticReconnect = mqttConfig.automaticReconnect
+
+                mqttConfig.username?.let { userName = it }
+                mqttConfig.password?.let { password = it.toCharArray() }
+            }
+
+            mqttClient.setCallback(object : MqttCallback {
+                override fun connectionLost(cause: Throwable?) {
+                    Log.e(TAG, "MQTT connection lost", cause)
+                }
+
+                override fun messageArrived(topic: String, message: MqttMessage) {
+                    Log.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
+                    onMessageArrivalCallback?.invoke(topic, message.toString())
+                }
+
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                    Log.d(TAG, "MQTT delivery complete: token=$token")
+                }
+            })
+
+            mqttClient.connect(options)
+            Log.i(TAG, "MQTT connected")
+        } catch (e: Exception) {
+            Log.e(TAG, "MQTT init error", e)
+        }
+    }
+
+    private fun createPersistence(): MqttDefaultFilePersistence {
+        val persistenceDir = File(cacheDir, "skyroute")
+        if (!persistenceDir.exists()) persistenceDir.mkdirs()
+
+        return MqttDefaultFilePersistence(persistenceDir.absolutePath)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            if (mqttClient.isConnected) mqttClient.disconnect()
+        } catch (e: Exception) {
+            Log.e(TAG, "MQTT disconnect error", e)
+        }
+        Log.w(TAG, "SkyRouteService destroyed")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "Starting SkyRouteService! startId=$startId")
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    inner class SkyRouteBinder : Binder() {
+        fun getTopicMessenger(): TopicMessenger = this@SkyRouteService
+    }
+
+    override fun subscribe(topic: String, qos: Int) {
+        Log.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
+        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+            mqttClient.subscribe(topic, qos)
+        }
+    }
+
+    override fun unsubscribe(topic: String) {
+        Log.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
+        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+            mqttClient.unsubscribe(topic)
+        }
+    }
+
+    override fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
+        Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '$message'")
+        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+            val msg = MqttMessage(message.toString().toByteArray()).apply {
+                this.qos = qos
+                this.isRetained = retain
+            }
+            mqttClient.publish(topic, msg)
+        }
+    }
+
+    override fun onMessageArrival(callback: (topic: String, message: Any) -> Unit) {
+        this.onMessageArrivalCallback = callback
+    }
+
+    companion object {
+        private const val TAG = "SkyRouteService"
+    }
+}
