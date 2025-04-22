@@ -79,9 +79,16 @@ class SkyRouteSampleActivity : AppCompatActivity() {
         appendLogs("Received message on topic 'topic/abc': $message")
     }
 
-    @Subscribe(topic = "xyz/+", threadMode = ThreadMode.MAIN)
-    fun subscribeToXyz(message: String) {
-        appendLogs("Received message on topic 'topic/xyz': $message")
+    @Subscribe(topic = "test/+/temperature", threadMode = ThreadMode.MAIN)
+    fun subscribeToTemperature(temperature: String, wildcards: List<String>) {
+        // Sample: Single-level wildcard subscription
+        appendLogs("Received temperature for '${wildcards.joinToString()}': $temperature")
+    }
+
+    @Subscribe(topic = "xyz/#", threadMode = ThreadMode.MAIN)
+    fun subscribeToXyz(message: String, wildcards: List<String>) {
+        // Sample: Multi-level wildcard subscription
+        appendLogs("Received message on topic '${wildcards.joinToString()}': $message")
     }
 
     @Subscribe(topic = "test/random-names", threadMode = ThreadMode.MAIN)

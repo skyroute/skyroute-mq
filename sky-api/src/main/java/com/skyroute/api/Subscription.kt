@@ -1,11 +1,13 @@
 package com.skyroute.api
 
+import java.lang.reflect.Method
 import kotlin.concurrent.Volatile
 
 internal data class SubscriberMethod(
-    val method: (Any) -> Unit,
+    val method: Method,
     val description: String,
     val threadMode: ThreadMode = ThreadMode.MAIN,
+    val topic: String,
 )
 
 internal class Subscription(

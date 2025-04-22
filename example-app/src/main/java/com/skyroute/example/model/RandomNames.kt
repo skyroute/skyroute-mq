@@ -15,6 +15,6 @@ data class RandomNames(
 ) {
 
     override fun toString(): String {
-        return "RandomNames(uid='$uid', numOfNames=$numOfNames, names=[${names.joinToString(",")}])"
+        return "RandomNames(uid='$uid', numOfNames=$numOfNames, names=[${names.joinToString()}])"
     }
 }

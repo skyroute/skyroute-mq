@@ -10,6 +10,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
+import com.skyroute.api.util.TopicUtils.extractWildcards
+import com.skyroute.api.util.TopicUtils.matchesTopic
 import com.skyroute.service.SkyRouteService
 import com.skyroute.service.TopicMessenger
 import java.lang.reflect.InvocationTargetException
@@ -41,15 +43,19 @@ class SkyRoute private constructor() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             Log.d(TAG, "onServiceConnected!")
-            (binder as? SkyRouteService.SkyRouteBinder)?.let {
-                topicMessenger = it.getTopicMessenger()
+            (binder as? SkyRouteService.SkyRouteBinder)?.let { skyRouteBinder ->
+                topicMessenger = skyRouteBinder.getTopicMessenger()
                 bound = true
 
                 // Register message arrival
                 topicMessenger?.onMessageArrival { topic, message ->
-                    val subscriptions = subscriptionsByTopic[topic]
-                    subscriptions?.forEach { subscription ->
-                        invokeMethod(subscription, message)
+                    val subscriptions = subscriptionsByTopic
+                        .filterKeys { it.matchesTopic(topic) }
+                        .values
+                        .flatten()
+
+                    subscriptions.forEach { subscription ->
+                        invokeMethod(subscription, message, extractWildcards(subscription.subscriberMethod.topic, topic))
                     }
                 }
 
@@ -103,36 +109,18 @@ class SkyRoute private constructor() {
         }
 
         for (method in methods) {
-            val parameterTypes = method.parameterTypes
-            if (parameterTypes.size != 1) {
-                throw IllegalArgumentException("Method ${method.name} in class ${subscriberClass.name} must have exactly one parameter.")
-            }
-
             val subscribeAnnotation = method.getAnnotation(Subscribe::class.java)
                 ?: throw IllegalArgumentException("Method ${method.name} in class ${subscriberClass.name} must be annotated with @Subscribe.")
 
             val topic = subscribeAnnotation.topic
             val threadMode = subscribeAnnotation.threadMode
-            val parameterType = parameterTypes[0]
 
             // Wrap the method as a lambda
             val subscriberMethod = SubscriberMethod(
-                method = { message ->
-                    method.isAccessible = true
-
-                    // Skip calling the method if deserialization fails
-                    val finalMessage = convertMessage(message, parameterType) ?: return@SubscriberMethod
-
-                    try {
-                        method.invoke(subscriber, finalMessage)
-                    } catch (e: InvocationTargetException) {
-                        Log.e(TAG, "Method invocation failed", e)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Unknown error", e)
-                    }
-                },
-                description = "${subscriberClass.name}#${method.name}(${parameterType.name})",
-                threadMode = threadMode
+                method = method,
+                description = "${subscriberClass.name}#${method.name}",
+                threadMode = threadMode,
+                topic = topic
             )
 
             val subscription = Subscription(subscriber, subscriberMethod)
@@ -163,16 +151,31 @@ class SkyRoute private constructor() {
         }
     }
 
-    private fun invokeMethod(subscription: Subscription, message: Any) {
+    private fun invokeMethod(subscription: Subscription, message: Any, wildcards: List<String>? = null) {
         // Check if the subscription is still active
         if (!subscription.active) return
 
         val method = subscription.subscriberMethod.method
         val threadMode = subscription.subscriberMethod.threadMode
+        val instance = subscription.subscriber
 
-        val invoke = {
+        val invoke = lambda@{
             try {
-                method.invoke(message)
+                val params = method.parameterTypes
+                val args = when (params.size) {
+                    1 -> arrayOf(convertMessage(message, params[0]))
+
+                    2 -> arrayOf(
+                        convertMessage(message, params[0]),
+                        wildcards ?: emptyList<String>()
+                    )
+
+                    else -> throw IllegalArgumentException("Method ${method.name} in class ${instance::class.java.name} must have 1 or 2 parameters")
+                }
+
+                if (args[0] == null) return@lambda // Deserialization failed
+
+                method.invoke(instance, *args)
             } catch (e: InvocationTargetException) {
                 Log.e(TAG, "Method invocation failed", e)
             } catch (e: Exception) {
