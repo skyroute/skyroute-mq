@@ -23,7 +23,7 @@ import java.io.File
  *
  * @author Andre Suryana
  */
-class SkyRouteService : Service(), TopicMessenger {
+class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     private val binder = SkyRouteBinder()
     private lateinit var mqttClient: MqttClient
@@ -145,21 +145,21 @@ class SkyRouteService : Service(), TopicMessenger {
 
     override fun subscribe(topic: String, qos: Int) {
         Log.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
-        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+        if (isConnected()) {
             mqttClient.subscribe(topic, qos)
         }
     }
 
     override fun unsubscribe(topic: String) {
         Log.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
-        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+        if (isConnected()) {
             mqttClient.unsubscribe(topic)
         }
     }
 
     override fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
         Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '$message'")
-        if (::mqttClient.isInitialized && mqttClient.isConnected) {
+        if (isConnected()) {
             val msg = MqttMessage(message.toString().toByteArray()).apply {
                 this.qos = qos
                 this.isRetained = retain
@@ -170,6 +170,33 @@ class SkyRouteService : Service(), TopicMessenger {
 
     override fun onMessageArrival(callback: MessageArrival) {
         this.onMessageArrivalCallback = callback
+    }
+
+    override fun connect(config: MqttConfig) {
+        try {
+            if (isConnected()) {
+                Log.i(TAG, "MQTT is already connected, disconnecting for reconfiguration")
+                mqttClient.disconnect()
+            }
+            initMqtt(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "MQTT connect error", e)
+        }
+    }
+
+    override fun disconnect() {
+        try {
+            if (isConnected()) {
+                mqttClient.disconnect()
+                Log.i(TAG, "MQTT disconnected via controller")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "MQTT disconnect error", e)
+        }
+    }
+
+    override fun isConnected(): Boolean {
+        return ::mqttClient.isInitialized && mqttClient.isConnected
     }
 
     /**
@@ -183,6 +210,8 @@ class SkyRouteService : Service(), TopicMessenger {
          * @return The [TopicMessenger] instance associated with the service.
          */
         fun getTopicMessenger(): TopicMessenger = this@SkyRouteService
+
+        fun getMqttController(): MqttController = this@SkyRouteService
     }
 
     companion object {

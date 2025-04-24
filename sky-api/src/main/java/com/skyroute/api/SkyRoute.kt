@@ -12,11 +12,15 @@ import android.util.Log
 import com.google.gson.Gson
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
+import com.skyroute.service.MqttController
 import com.skyroute.service.SkyRouteService
 import com.skyroute.service.TopicMessenger
+import com.skyroute.service.config.MqttConfig
 import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.concurrent.Volatile
 
 /**
@@ -49,15 +53,27 @@ class SkyRoute private constructor() {
     private val typesBySubscriber: MutableMap<Any, MutableList<String>> = ConcurrentHashMap()
     private val pendingRegistrations = mutableListOf<Any>()
 
+    private var executorService = Executors.newCachedThreadPool()
+
     private var topicMessenger: TopicMessenger? = null
+    private var mqttController: MqttController? = null
+    private var config: MqttConfig? = null
     private var bound = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            Log.d(TAG, "onServiceConnected!")
+            Log.i(TAG, "SkyRoute service connected!")
             (binder as? SkyRouteService.SkyRouteBinder)?.let { skyRouteBinder ->
+                // Initialize interface
                 topicMessenger = skyRouteBinder.getTopicMessenger()
+                mqttController = skyRouteBinder.getMqttController()
                 bound = true
+
+                // Load the config from builder, this will ignore the defined config in manifest
+                config?.let {
+                    Log.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
+                    mqttController?.connect(it)
+                }
 
                 // Register message arrival
                 topicMessenger?.onMessageArrival { topic, message ->
@@ -81,7 +97,7 @@ class SkyRoute private constructor() {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            Log.d(TAG, "onServiceDisconnected!")
+            Log.w(TAG, "SkyRoute service disconnected!")
             topicMessenger = null
             bound = false
         }
@@ -92,8 +108,10 @@ class SkyRoute private constructor() {
      *
      * @param context The application context to bind the service.
      */
-    fun init(context: Context) {
-        if (bound) return
+    fun init(context: Context, config: MqttConfig? = null) {
+        Log.i(TAG, "SkyRoute init...")
+        this.config = config
+
         context.applicationContext.run { // Using application context to avoid memory leaks
             val intent = Intent(this, SkyRouteService::class.java)
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
@@ -237,14 +255,14 @@ class SkyRoute private constructor() {
 
             ThreadMode.BACKGROUND -> {
                 if (Looper.myLooper() == Looper.getMainLooper()) {
-                    Thread { invoke() }.start()
+                    executorService.execute { invoke() }
                 } else {
                     invoke()
                 }
             }
 
             ThreadMode.ASYNC -> {
-                Thread { invoke() }.start()
+                executorService.execute { invoke() }
             }
         }
     }
@@ -328,5 +346,14 @@ class SkyRoute private constructor() {
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
 
         topicMessenger?.publish(topic, message, qos, retain)
+    }
+
+    /**
+     * Sets a custom [ExecutorService] for internal asynchronous operations.
+     *
+     * @param executor The executor to use for background tasks.
+     */
+    fun setExecutor(executor: ExecutorService) {
+        this.executorService = executor
     }
 }
