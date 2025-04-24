@@ -15,6 +15,7 @@ package com.skyroute.api
  * ```
  *
  * @property topic The MQTT topic to subscribe to.
+ * @property qos The Quality of Service (QoS) level for the subscription.
  * @property threadMode The thread mode for executing the subscriber. Defaults to [ThreadMode.MAIN].
  *
  * @author Andre Suryana
@@ -23,5 +24,6 @@ package com.skyroute.api
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Subscribe(
     val topic: String,
+    val qos: Int = 0,
     val threadMode: ThreadMode = ThreadMode.MAIN,
 )

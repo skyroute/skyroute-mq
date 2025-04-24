@@ -140,6 +140,7 @@ class SkyRoute private constructor() {
                 ?: throw IllegalArgumentException("Method ${method.name} in class ${subscriberClass.name} must be annotated with @Subscribe.")
 
             val topic = subscribeAnnotation.topic
+            val qos = subscribeAnnotation.qos
             val threadMode = subscribeAnnotation.threadMode
 
             // Wrap the method as a lambda
@@ -147,13 +148,14 @@ class SkyRoute private constructor() {
                 method = method,
                 description = "${subscriberClass.name}#${method.name}",
                 threadMode = threadMode,
-                topic = topic
+                topic = topic,
+                qos = qos
             )
 
             val subscription = Subscription(subscriber, subscriberMethod)
 
             // Subscribe to the topic
-            topicMessenger?.subscribe(topic)
+            topicMessenger?.subscribe(topic, qos)
 
             // Register into the maps
             subscriptionsByTopic.getOrPut(topic) { CopyOnWriteArrayList() }.add(subscription)

@@ -11,6 +11,7 @@ import java.lang.reflect.Method
  * @param description A human-readable description of the method.
  * @param threadMode The thread mode in which the method should be executed. Defaults to [ThreadMode.MAIN].
  * @param topic The topic that this method subscribed to.
+ * @param qos The Quality of Service (QoS) level associated with this method.
  *
  * @author Andre Suryana
  */
@@ -19,4 +20,5 @@ internal data class SubscriberMethod(
     val description: String,
     val threadMode: ThreadMode = ThreadMode.MAIN,
     val topic: String,
+    val qos: Int,
 )
