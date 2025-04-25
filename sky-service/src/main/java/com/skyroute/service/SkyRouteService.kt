@@ -8,6 +8,7 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import com.skyroute.service.config.MqttConfig
+import com.skyroute.service.util.MetadataUtils.toMqttConfig
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
@@ -42,37 +43,28 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
             PackageManager.GET_META_DATA
         ).metaData
 
-        val brokerUrl = metaData?.getString("broker_url") ?: "tcp://127.0.0.1:1883"
-        val clientPrefix = metaData?.getString("client_prefix") ?: "skyroute"
-
-        val mqttConfig = MqttConfig(
-            brokerUrl = brokerUrl,
-            clientId = "$clientPrefix-client-${System.currentTimeMillis()}",
-            cleanSession = true,
-            automaticReconnect = true
-        )
-        initMqtt(mqttConfig)
+        initMqtt(metaData.toMqttConfig())
     }
 
     /**
      * Initialize the MQTT client with the given configuration.
-     *
-     * @param mqttConfig The configuration parameters for connecting to the MQTT broker.
      */
-    private fun initMqtt(mqttConfig: MqttConfig) {
+    private fun initMqtt(config: MqttConfig) {
         try {
-            Log.i(TAG, "MQTT init... url=${mqttConfig.brokerUrl}, client=${mqttConfig.clientId}")
-            mqttClient = MqttClient(mqttConfig.brokerUrl, mqttConfig.clientId, createPersistence())
+            val clientId = config.generateClientId()
+
+            mqttClient = MqttClient(config.brokerUrl, clientId, createPersistence())
+            Log.i(TAG, "MQTT init... url=${config.brokerUrl}, client=$clientId")
 
             val options = MqttConnectOptions().apply {
-                isCleanSession = mqttConfig.cleanSession
-                connectionTimeout = mqttConfig.connectionTimeout
-                keepAliveInterval = mqttConfig.keepAliveInterval
-                maxInflight = mqttConfig.maxInFlight
-                isAutomaticReconnect = mqttConfig.automaticReconnect
+                isCleanSession = config.cleanSession
+                connectionTimeout = config.connectionTimeout
+                keepAliveInterval = config.keepAliveInterval
+                maxInflight = config.maxInFlight
+                isAutomaticReconnect = config.automaticReconnect
 
-                mqttConfig.username?.let { userName = it }
-                mqttConfig.password?.let { password = it.toCharArray() }
+                config.username?.let { userName = it }
+                config.password?.let { password = it.toCharArray() }
             }
 
             mqttClient.setCallback(object : MqttCallback {

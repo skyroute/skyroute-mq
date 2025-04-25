@@ -25,11 +25,17 @@
 
         <service android:name="com.skyroute.service.SkyRouteService">
             <meta-data
-                android:name="broker_url"
-                android:value="tcp://192.168.137.1:1883" />
+                android:name="mqttBrokerUrl"
+                android:value="tcp://broker.hivemq.com:1883" />
             <meta-data
-                android:name="client_prefix"
-                android:value="android" />
+                android:name="clientPrefix"
+                android:value="skyroute-sample" />
+            <meta-data
+                android:name="connectionTimeout"
+                android:value="30" />
+            <meta-data
+                android:name="keepAliveInterval"
+                android:value="60" />
         </service>
 
     </application>

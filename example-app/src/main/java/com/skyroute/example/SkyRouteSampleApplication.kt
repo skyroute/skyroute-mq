@@ -27,7 +27,7 @@ class SkyRouteSampleApplication : Application() {
                 applicationContext,
                 MqttConfig(
                     brokerUrl = "tcp://your-broker.url",
-                    clientId = "broker-test",
+                    clientPrefix = "broker-test",
                     cleanSession = true,
                     connectionTimeout = 30,
                     keepAliveInterval = 60,
