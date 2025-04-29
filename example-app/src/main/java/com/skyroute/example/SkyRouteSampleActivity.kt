@@ -21,13 +21,18 @@ class SkyRouteSampleActivity : AppCompatActivity() {
     private lateinit var viewModel: CountDownViewModel
     private var isFirstAppendLog = true
 
+    override fun onStart() {
+        super.onStart()
+
+        SkyRoute.getDefault().register(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivitySkyRouteSampleBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        SkyRoute.getDefault().register(this)
         setupPublishButton()
 
         viewModel = ViewModelProvider(this)[CountDownViewModel::class.java]
