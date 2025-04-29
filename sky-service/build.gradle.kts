@@ -45,5 +45,4 @@ dependencies {
 
     // Paho MQTT Client
     implementation(libs.paho.client)
-    implementation(libs.paho.android.service)
 }

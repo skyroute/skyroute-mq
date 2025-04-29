@@ -9,13 +9,21 @@ import android.os.IBinder
 import android.util.Log
 import com.skyroute.service.config.MqttConfig
 import com.skyroute.service.util.MetadataUtils.toMqttConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
+import org.eclipse.paho.client.mqttv3.MqttException
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
 import java.io.File
+import kotlin.math.pow
 
 /**
  * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
@@ -27,9 +35,19 @@ import java.io.File
 class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     private val binder = SkyRouteBinder()
-    private lateinit var mqttClient: MqttClient
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val pendingRequests = mutableListOf<() -> Unit>()
 
+    private lateinit var mqttClient: MqttClient
+    private lateinit var config: MqttConfig
     private var onMessageArrivalCallback: MessageArrival? = null
+
+    private var retryCount = 0
+    private var isMqttConnected = false
+        set(value) {
+            if (value) retryCount = 0 // Reset the retry count
+            field = value
+        }
 
     /**
      * Initializes the MQTT connection using configuration parameters from the service metadata.
@@ -42,50 +60,63 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
             ComponentName(this, SkyRouteService::class.java),
             PackageManager.GET_META_DATA
         ).metaData
+        config = metaData.toMqttConfig()
 
-        initMqtt(metaData.toMqttConfig())
+        initMqtt()
     }
 
     /**
      * Initialize the MQTT client with the given configuration.
      */
-    private fun initMqtt(config: MqttConfig) {
-        try {
-            val clientId = config.generateClientId()
+    private fun initMqtt() {
+        serviceScope.launch {
+            try {
+                val clientId = config.generateClientId()
 
-            mqttClient = MqttClient(config.brokerUrl, clientId, createPersistence())
-            Log.i(TAG, "MQTT init... url=${config.brokerUrl}, client=$clientId")
+                mqttClient = MqttClient(config.brokerUrl, clientId, createPersistence())
+                Log.i(TAG, "MQTT init... url=${config.brokerUrl}, client=$clientId")
 
-            val options = MqttConnectOptions().apply {
-                isCleanSession = config.cleanSession
-                connectionTimeout = config.connectionTimeout
-                keepAliveInterval = config.keepAliveInterval
-                maxInflight = config.maxInFlight
-                isAutomaticReconnect = config.automaticReconnect
+                val options = MqttConnectOptions().apply {
+                    isCleanSession = config.cleanSession
+                    connectionTimeout = config.connectionTimeout
+                    keepAliveInterval = config.keepAliveInterval
+                    maxInflight = config.maxInFlight
+                    isAutomaticReconnect = config.automaticReconnect
 
-                config.username?.let { userName = it }
-                config.password?.let { password = it.toCharArray() }
+                    config.username?.let { userName = it }
+                    config.password?.let { password = it.toCharArray() }
+                }
+
+                mqttClient.setCallback(object : MqttCallback {
+                    override fun connectionLost(cause: Throwable?) {
+                        Log.e(TAG, "MQTT connection lost", cause)
+                    }
+
+                    override fun messageArrived(topic: String, message: MqttMessage) {
+                        Log.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
+                        onMessageArrivalCallback?.invoke(topic, message.toString())
+                    }
+
+                    override fun deliveryComplete(token: IMqttDeliveryToken?) {
+                        Log.d(TAG, "MQTT delivery complete: token=$token")
+                    }
+                })
+
+                // Set waiting timeout to prevent blocking the main thread
+                mqttClient.timeToWait = config.connectionTimeout * 1000L
+
+                mqttClient.connect(options)
+                isMqttConnected = true
+                Log.i(TAG, "MQTT connected")
+
+                executePendingRequests()
+            } catch (e: MqttException) {
+                handleMqttException(e)
+                isMqttConnected = false
+            } catch (e: Exception) {
+                Log.e(TAG, "MQTT init unknown error", e)
+                isMqttConnected = false
             }
-
-            mqttClient.setCallback(object : MqttCallback {
-                override fun connectionLost(cause: Throwable?) {
-                    Log.e(TAG, "MQTT connection lost", cause)
-                }
-
-                override fun messageArrived(topic: String, message: MqttMessage) {
-                    Log.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
-                    onMessageArrivalCallback?.invoke(topic, message.toString())
-                }
-
-                override fun deliveryComplete(token: IMqttDeliveryToken?) {
-                    Log.d(TAG, "MQTT delivery complete: token=$token")
-                }
-            })
-
-            mqttClient.connect(options)
-            Log.i(TAG, "MQTT connected")
-        } catch (e: Exception) {
-            Log.e(TAG, "MQTT init error", e)
         }
     }
 
@@ -101,13 +132,43 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         return MqttDefaultFilePersistence(persistenceDir.absolutePath)
     }
 
+    private fun handleMqttException(e: MqttException) {
+        when (e.reasonCode.toShort()) {
+            MqttException.REASON_CODE_CLIENT_TIMEOUT -> {
+                Log.w(TAG, "MQTT client timeout", e)
+
+                if (config.automaticReconnect) {
+                    // Exponential backoff with maximum delay
+                    val delayTime = minOf(10_000L * 1.5.pow(retryCount).toLong(), MAX_RETRY_DELAY)
+
+                    serviceScope.launch {
+                        delay(delayTime)
+                        initMqtt()
+                        retryCount++
+                    }
+                }
+            }
+
+            else -> Log.e(TAG, "MQTT init error!", e)
+        }
+    }
+
+    private fun executePendingRequests() {
+        pendingRequests.forEach { request ->
+            request() // Execute the queued action
+        }
+        pendingRequests.clear() // Clear the queue after execution
+    }
+
     /**
      * Stops the MQTT client and cleans up when the service is destroyed.
      */
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel() // Cancel ongoing coroutines
+
         try {
-            if (mqttClient.isConnected) mqttClient.disconnect()
+            if (isConnected()) mqttClient.disconnect()
         } catch (e: Exception) {
             Log.e(TAG, "MQTT disconnect error", e)
         }
@@ -136,22 +197,40 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun subscribe(topic: String, qos: Int) {
-        Log.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
-        if (isConnected()) {
+        if (!isConnected()) {
+            Log.w(TAG, "MQTT client not connected. Request queued.")
+            pendingRequests.add { subscribe(topic, qos) }
+            return
+        }
+
+        serviceScope.launch {
+            Log.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
             mqttClient.subscribe(topic, qos)
         }
     }
 
     override fun unsubscribe(topic: String) {
-        Log.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
-        if (isConnected()) {
+        if (!isConnected()) {
+            Log.w(TAG, "MQTT client not connected. Request queued.")
+            pendingRequests.add { unsubscribe(topic) }
+            return
+        }
+
+        serviceScope.launch {
+            Log.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
             mqttClient.unsubscribe(topic)
         }
     }
 
     override fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
-        Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '$message'")
-        if (isConnected()) {
+        if (!isConnected()) {
+            Log.w(TAG, "MQTT client not connected. Request queued.")
+            pendingRequests.add { publish(topic, message, qos, retain) }
+            return
+        }
+
+        serviceScope.launch {
+            Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '$message'")
             val msg = MqttMessage(message.toString().toByteArray()).apply {
                 this.qos = qos
                 this.isRetained = retain
@@ -166,11 +245,16 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     override fun connect(config: MqttConfig) {
         try {
+            // Force clear the previous pending request
+            pendingRequests.clear()
+
             if (isConnected()) {
                 Log.i(TAG, "MQTT is already connected, disconnecting for reconfiguration")
                 mqttClient.disconnect()
             }
-            initMqtt(config)
+
+            this.config = config
+            initMqtt()
         } catch (e: Exception) {
             Log.e(TAG, "MQTT connect error", e)
         }
@@ -179,6 +263,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     override fun disconnect() {
         try {
             if (isConnected()) {
+                pendingRequests.clear()
                 mqttClient.disconnect()
                 Log.i(TAG, "MQTT disconnected via controller")
             }
@@ -188,7 +273,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     }
 
     override fun isConnected(): Boolean {
-        return ::mqttClient.isInitialized && mqttClient.isConnected
+        return ::mqttClient.isInitialized && mqttClient.isConnected && isMqttConnected
     }
 
     /**
@@ -208,5 +293,8 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     companion object {
         private const val TAG = "SkyRouteService"
+
+        /** Maximum retry delay in milliseconds (5 minutes) */
+        private const val MAX_RETRY_DELAY = 300_000L
     }
 }

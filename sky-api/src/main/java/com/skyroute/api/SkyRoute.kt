@@ -124,7 +124,7 @@ class SkyRoute private constructor() {
      * @param subscriber The subscriber object that has methods annotated with [Subscribe].
      */
     fun register(subscriber: Any) {
-        if (bound) {
+        if (bound && mqttController?.isConnected() == true) {
             internalRegister(subscriber)
         } else {
             Log.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
