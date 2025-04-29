@@ -89,7 +89,11 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
                 mqttClient.setCallback(object : MqttCallback {
                     override fun connectionLost(cause: Throwable?) {
-                        Log.e(TAG, "MQTT connection lost", cause)
+                        if (cause is MqttException) {
+                            handleMqttException(cause)
+                        } else {
+                            Log.e(TAG, "MQTT connection lost, unknown error!", cause)
+                        }
                     }
 
                     override fun messageArrived(topic: String, message: MqttMessage) {
@@ -133,10 +137,11 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     }
 
     private fun handleMqttException(e: MqttException) {
+        Log.w(TAG, "MQTT client exception, $e")
         when (e.reasonCode.toShort()) {
-            MqttException.REASON_CODE_CLIENT_TIMEOUT -> {
-                Log.w(TAG, "MQTT client timeout", e)
-
+            MqttException.REASON_CODE_CLIENT_TIMEOUT,
+            MqttException.REASON_CODE_CONNECTION_LOST,
+                -> {
                 if (config.automaticReconnect) {
                     // Exponential backoff with maximum delay
                     val delayTime = minOf(10_000L * 1.5.pow(retryCount).toLong(), MAX_RETRY_DELAY)
