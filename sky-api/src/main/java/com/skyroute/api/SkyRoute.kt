@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2025 Andre Suryana, SkyRoute (https://github.com/skyroute)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.skyroute.api
 
 import android.annotation.SuppressLint
@@ -146,9 +161,10 @@ class SkyRoute private constructor() {
 
         if (methods.isEmpty()) {
             Log.w(
-                TAG, "No methods with @Subscribe annotation were found in class ${subscriberClass.name}. " +
-                        "Ensure you have at least one method annotated with @Subscribe(topic = ...) " +
-                        "and the method is not private or static."
+                TAG,
+                "No methods with @Subscribe annotation were found in class ${subscriberClass.name}. " +
+                    "Ensure you have at least one method annotated with @Subscribe(topic = ...) " +
+                    "and the method is not private or static.",
             )
             return
         }
@@ -167,7 +183,7 @@ class SkyRoute private constructor() {
                 description = "${subscriberClass.name}#${method.name}",
                 threadMode = threadMode,
                 topic = topic,
-                qos = qos
+                qos = qos,
             )
 
             val subscription = Subscription(subscriber, subscriberMethod)
@@ -228,7 +244,7 @@ class SkyRoute private constructor() {
 
                     2 -> arrayOf(
                         convertMessage(message, params[0]),
-                        wildcards ?: emptyList<String>()
+                        wildcards ?: emptyList<String>(),
                     )
 
                     else -> throw IllegalArgumentException("Method ${method.name} in class ${instance::class.java.name} must have 1 or 2 parameters")
