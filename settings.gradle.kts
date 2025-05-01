@@ -23,6 +23,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "SkyRouteMQ"
 
+include(":skyroute-mq")
 include(":sky-api")
 include(":sky-service")
 
