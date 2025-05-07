@@ -11,4 +11,9 @@ version = "0.1.0-alpha.1"
 
 subprojects {
     apply(plugin = "skyroute-spotless")
+
+    // Only apply publishing to publishable modules
+    if (name !in listOf("example-app")) {
+        apply(plugin = "com.vanniktech.maven.publish")
+    }
 }

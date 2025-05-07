@@ -2,7 +2,6 @@ import com.diffplug.gradle.spotless.SpotlessExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
-@Suppress("unused")
 class SpotlessConventionPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
