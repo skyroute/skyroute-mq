@@ -2,7 +2,7 @@ import com.diffplug.gradle.spotless.SpotlessExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
-class SpotlessConventionPlugin : Plugin<Project> {
+class SkyRouteConventionPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
         project.pluginManager.apply("com.diffplug.spotless")
