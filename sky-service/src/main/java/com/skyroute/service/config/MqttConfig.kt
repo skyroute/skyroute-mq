@@ -29,7 +29,6 @@ package com.skyroute.service.config
  * @param password Password for broker authentication (optional).
  *
  * @author Andre Suryana
- * @todo Since this data model used in both `sky-api` and `sky-service`, we should extract it to a `common` module
  */
 data class MqttConfig(
     val brokerUrl: String,
