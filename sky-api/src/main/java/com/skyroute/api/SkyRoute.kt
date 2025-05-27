@@ -28,6 +28,7 @@ import com.google.gson.Gson
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
 import com.skyroute.service.MqttController
+import com.skyroute.service.OnDisconnect
 import com.skyroute.service.SkyRouteService
 import com.skyroute.service.TopicMessenger
 import com.skyroute.service.config.MqttConfig
@@ -351,17 +352,32 @@ class SkyRoute private constructor() {
      * @param message The message to be published.
      * @param qos The Quality of Service level for the message.
      * @param retain Whether the message should be retained after delivery.
+     * @param ttl The Time To Live (TTL) for the message in seconds.
+     * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
+     */
+    fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
+        publish(topic, message, qos, retain, null)
+    }
+
+    /**
+     * Publishes a message with a specified Quality of Service (QoS) level and retain flag.
+     *
+     * @param topic The topic to publish the message to.
+     * @param message The message to be published.
+     * @param qos The Quality of Service level for the message.
+     * @param retain Whether the message should be retained after delivery.
+     * @param ttl The Time To Live (TTL) for the message in seconds.
      * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
      */
     @Throws(IllegalArgumentException::class)
-    fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
+    fun publish(topic: String, message: Any, qos: Int, retain: Boolean, ttl: Long? = null) {
         if (!bound) {
             Log.w(TAG, "publish: Service not yet bound! Message will be queued")
             return
         }
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
 
-        topicMessenger?.publish(topic, message, qos, retain)
+        topicMessenger?.publish(topic, message, qos, retain, ttl)
     }
 
     /**
@@ -371,5 +387,9 @@ class SkyRoute private constructor() {
      */
     fun setExecutor(executor: ExecutorService) {
         this.executorService = executor
+    }
+
+    fun setOnDisconnectCallback(callback: OnDisconnect) {
+        topicMessenger?.onDisconnect(callback)
     }
 }

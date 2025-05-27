@@ -18,30 +18,45 @@ package com.skyroute.service.config
 /**
  * Configuration for establishing an MQTT connection.
  *
- * @param brokerUrl The MQTT broker URL (host and port).
- * @param clientPrefix Client prefix for the MQTT client identifier.
- * @param cleanSession If true, a clean session will be used (defaults to true).
- * @param connectionTimeout Connection timeout in seconds (defaults to 10).
- * @param keepAliveInterval Interval in seconds for PING requests (defaults to 30).
- * @param maxInFlight Maximum number of in-flight messages (defaults to 10).
- * @param automaticReconnect If true, the client will automatically reconnect (defaults to true).
- * @param username Username for broker authentication (optional).
- * @param password Password for broker authentication (optional).
+ * @property brokerUrl The URL of the MQTT broker, including the host and port.
+ * @property clientPrefix The client prefix used to generate unique MQTT client identifier.
+ * @property cleanStart Whether to use a clean session. When true, any previous session will be discarded. Otherwise, resume the previous session
+ * if one exists and keep it for [sessionExpiryInterval] seconds when [sessionExpiryInterval] > 0.
+ * @property connectionTimeout The maximum time (in seconds) to wait when establishing a connection before timing out. Default is 30 seconds.
+ * @property keepAliveInterval The interval (in seconds) between PING messages sent to the broker to keep connection alive. Default is 60 seconds.
+ * @property automaticReconnect Whether the client should automatically attempt to reconnect if the connection is lost. Default is true.
+ * @property automaticReconnectMinDelay The minimum delay (in seconds) before attempting the first reconnect. Default is 1 second.
+ * @property automaticReconnectMaxDelay The maximum delay (in seconds) between reconnect attempts. Default is 120 seconds.
+ * @property maxReconnectDelay The upper limit (in seconds) for the total delay before a reconnect attempt. Default is 21600 seconds (6 hours).
+ * @property username Optional username for authenticating with the broker.
+ * @property password Optional password for authenticating with the broker.
+ *
+ * @constructor Creates a new instance of [MqttConfig] with the specified connection and reconnection parameters.
  *
  * @author Andre Suryana
  */
 data class MqttConfig(
     val brokerUrl: String,
-    val clientPrefix: String,
-    val cleanSession: Boolean = true,
-    val connectionTimeout: Int = 10,
-    val keepAliveInterval: Int = 30,
-    val maxInFlight: Int = 10,
+    private val clientPrefix: String,
+    val cleanStart: Boolean = true,
+    val sessionExpiryInterval: Int? = null,
+    val connectionTimeout: Int = 30,
+    val keepAliveInterval: Int = 60,
     val automaticReconnect: Boolean = true,
+    val automaticReconnectMinDelay: Int = 1,
+    val automaticReconnectMaxDelay: Int = 120,
+    val maxReconnectDelay: Int = 21600,
     val username: String? = null,
     val password: String? = null,
 ) {
-    fun generateClientId(): String {
+
+    /**
+     * Generates a unique client identifier for the MQTT connection based on the [clientPrefix]
+     * and the current system time in milliseconds.
+     *
+     * @return A unique MQTT client ID string.
+     */
+    fun getClientId(): String {
         val suffix = System.currentTimeMillis()
         val separator = if (clientPrefix.endsWith('-')) "" else "-"
         return "$clientPrefix$separator$suffix"

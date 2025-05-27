@@ -20,6 +20,8 @@ package com.skyroute.service
  */
 typealias MessageArrival = (topic: String, message: Any) -> Unit
 
+typealias OnDisconnect = (code: Int?, reason: String?) -> Unit
+
 /**
  * Interface for handling MQTT topic-based messaging operations.
  *
@@ -50,7 +52,7 @@ interface TopicMessenger {
      * @param qos The Quality of Service level (0, 1, or 2, default is 0).
      * @param retain Whether to retain the message (default is `false`).
      */
-    fun publish(topic: String, message: Any, qos: Int = 0, retain: Boolean = false)
+    fun publish(topic: String, message: Any, qos: Int = 0, retain: Boolean = false, ttlInSeconds: Long? = null)
 
     /**
      * Register a callback to handle incoming messages for a specific topic.
@@ -58,4 +60,11 @@ interface TopicMessenger {
      * @param callback A function that processes the received message.
      */
     fun onMessageArrival(callback: MessageArrival)
+
+    /**
+     * Register a callback to handle disconnection events.
+     *
+     * @param callback A function that processes the disconnection event.
+     */
+    fun onDisconnect(callback: OnDisconnect)
 }

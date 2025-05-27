@@ -47,11 +47,20 @@
                 android:name="clientPrefix"
                 android:value="skyroute-sample" />
             <meta-data
+                android:name="cleanStart"
+                android:value="false" />
+            <meta-data
+                android:name="sessionExpiryInterval"
+                android:value="900" />
+            <meta-data
                 android:name="connectionTimeout"
                 android:value="30" />
             <meta-data
                 android:name="keepAliveInterval"
                 android:value="60" />
+            <meta-data
+                android:name="autoReconnect"
+                android:value="true" />
         </service>
 
     </application>

@@ -28,17 +28,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.MqttCallback
-import org.eclipse.paho.client.mqttv3.MqttClient
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttException
-import org.eclipse.paho.client.mqttv3.MqttMessage
-import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
+import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
+import org.eclipse.paho.mqttv5.client.IMqttToken
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient
+import org.eclipse.paho.mqttv5.client.MqttCallback
+import org.eclipse.paho.mqttv5.client.MqttConnectionOptions
+import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
+import org.eclipse.paho.mqttv5.client.persist.MqttDefaultFilePersistence
+import org.eclipse.paho.mqttv5.common.MqttException
+import org.eclipse.paho.mqttv5.common.MqttMessage
+import org.eclipse.paho.mqttv5.common.packet.MqttProperties
 import java.io.File
-import kotlin.math.pow
 
 /**
  * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
@@ -53,16 +54,10 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val pendingRequests = mutableListOf<() -> Unit>()
 
-    private lateinit var mqttClient: MqttClient
+    private lateinit var mqttClient: IMqttAsyncClient
     private lateinit var config: MqttConfig
     private var onMessageArrivalCallback: MessageArrival? = null
-
-    private var retryCount = 0
-    private var isMqttConnected = false
-        set(value) {
-            if (value) retryCount = 0 // Reset the retry count
-            field = value
-        }
+    private var onDisconnectCallback: OnDisconnect? = null
 
     /**
      * Initializes the MQTT connection using configuration parameters from the service metadata.
@@ -86,55 +81,79 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     private fun initMqtt() {
         serviceScope.launch {
             try {
-                val clientId = config.generateClientId()
+                val clientId = config.getClientId()
 
-                mqttClient = MqttClient(config.brokerUrl, clientId, createPersistence())
                 Log.i(TAG, "MQTT init... url=${config.brokerUrl}, client=$clientId")
+                mqttClient = MqttAsyncClient(
+                    config.brokerUrl,
+                    clientId,
+                    createPersistence(),
+                )
 
-                val options = MqttConnectOptions().apply {
-                    isCleanSession = config.cleanSession
+                val options = MqttConnectionOptions().apply {
+                    serverURIs = arrayOf(config.brokerUrl)
+                    isCleanStart = config.cleanStart
+                    config.sessionExpiryInterval?.let {
+                        sessionExpiryInterval = it.toLong()
+                    }
                     connectionTimeout = config.connectionTimeout
                     keepAliveInterval = config.keepAliveInterval
-                    maxInflight = config.maxInFlight
                     isAutomaticReconnect = config.automaticReconnect
+                    setAutomaticReconnectDelay(
+                        config.automaticReconnectMinDelay,
+                        config.automaticReconnectMaxDelay,
+                    )
+                    maxReconnectDelay = config.maxReconnectDelay
 
                     config.username?.let { userName = it }
-                    config.password?.let { password = it.toCharArray() }
+                    config.password?.let { password = it.toByteArray() }
+
+                    // TODO: Implement SSL/TLS support
                 }
 
                 mqttClient.setCallback(object : MqttCallback {
-                    override fun connectionLost(cause: Throwable?) {
-                        if (cause is MqttException) {
-                            handleMqttException(cause)
-                        } else {
-                            Log.e(TAG, "MQTT connection lost, unknown error!", cause)
-                        }
+                    override fun disconnected(response: MqttDisconnectResponse?) {
+                        Log.e(TAG, "MQTT disconnected! ${response.toString()}")
+                        onDisconnectCallback?.invoke(response?.returnCode, response?.reasonString)
+                    }
+
+                    override fun mqttErrorOccurred(exception: MqttException?) {
+                        Log.e(TAG, "MQTT unknown error!", exception)
                     }
 
                     override fun messageArrived(topic: String, message: MqttMessage) {
                         Log.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
+                        // TODO: Handle message arrival by automatically parsing the message
+                        //  into the correct format using the given adapter (gson, moshi, xml, etc)
                         onMessageArrivalCallback?.invoke(topic, message.toString())
                     }
 
-                    override fun deliveryComplete(token: IMqttDeliveryToken?) {
-                        Log.d(TAG, "MQTT delivery complete: token=$token")
+                    override fun deliveryComplete(token: IMqttToken?) {
+                        if (token == null) {
+                            Log.d(TAG, "MQTT delivery complete: token is null")
+                            return
+                        }
+
+                        val topics = token.topics?.joinToString() ?: "Unknown"
+                        val message = token.message?.toString() ?: "No message"
+                        val isComplete = token.isComplete
+
+                        Log.d(TAG, "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete")
+                    }
+
+                    override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                        Log.d(TAG, "MQTT connected: reconnect=$reconnect, serverURI=$serverURI")
+                        executePendingRequests()
+                    }
+
+                    override fun authPacketArrived(reasonCode: Int, properties: MqttProperties?) {
+                        Log.d(TAG, "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties")
                     }
                 })
 
-                // Set waiting timeout to prevent blocking the main thread
-                mqttClient.timeToWait = config.connectionTimeout * 1000L
-
                 mqttClient.connect(options)
-                isMqttConnected = true
-                Log.i(TAG, "MQTT connected")
-
-                executePendingRequests()
-            } catch (e: MqttException) {
-                handleMqttException(e)
-                isMqttConnected = false
             } catch (e: Exception) {
                 Log.e(TAG, "MQTT init unknown error", e)
-                isMqttConnected = false
             }
         }
     }
@@ -149,28 +168,6 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         if (!persistenceDir.exists()) persistenceDir.mkdirs()
 
         return MqttDefaultFilePersistence(persistenceDir.absolutePath)
-    }
-
-    private fun handleMqttException(e: MqttException) {
-        Log.w(TAG, "MQTT client exception, $e")
-        when (e.reasonCode.toShort()) {
-            MqttException.REASON_CODE_CLIENT_TIMEOUT,
-            MqttException.REASON_CODE_CONNECTION_LOST,
-            -> {
-                if (config.automaticReconnect) {
-                    // Exponential backoff with maximum delay
-                    val delayTime = minOf(10_000L * 1.5.pow(retryCount).toLong(), MAX_RETRY_DELAY)
-
-                    serviceScope.launch {
-                        delay(delayTime)
-                        initMqtt()
-                        retryCount++
-                    }
-                }
-            }
-
-            else -> Log.e(TAG, "MQTT init error!", e)
-        }
     }
 
     private fun executePendingRequests() {
@@ -242,7 +239,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         }
     }
 
-    override fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
+    override fun publish(topic: String, message: Any, qos: Int, retain: Boolean, ttlInSeconds: Long?) {
         if (!isConnected()) {
             Log.w(TAG, "MQTT client not connected. Request queued.")
             pendingRequests.add { publish(topic, message, qos, retain) }
@@ -254,6 +251,11 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
             val msg = MqttMessage(message.toString().toByteArray()).apply {
                 this.qos = qos
                 this.isRetained = retain
+
+                // Set message TTL if provided
+                this.properties = MqttProperties().apply {
+                    messageExpiryInterval = ttlInSeconds
+                }
             }
             mqttClient.publish(topic, msg)
         }
@@ -261,6 +263,10 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     override fun onMessageArrival(callback: MessageArrival) {
         this.onMessageArrivalCallback = callback
+    }
+
+    override fun onDisconnect(callback: OnDisconnect) {
+        this.onDisconnectCallback = callback
     }
 
     override fun connect(config: MqttConfig) {
@@ -293,7 +299,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
     }
 
     override fun isConnected(): Boolean {
-        return ::mqttClient.isInitialized && mqttClient.isConnected && isMqttConnected
+        return ::mqttClient.isInitialized && mqttClient.isConnected
     }
 
     /**
@@ -313,8 +319,5 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     companion object {
         private const val TAG = "SkyRouteService"
-
-        /** Maximum retry delay in milliseconds (5 minutes) */
-        private const val MAX_RETRY_DELAY = 300_000L
     }
 }
