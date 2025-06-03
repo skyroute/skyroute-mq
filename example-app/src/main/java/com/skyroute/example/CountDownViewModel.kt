@@ -62,7 +62,7 @@ class CountDownViewModel : ViewModel() {
             }
 
             Log.i(TAG, "Countdown finished!")
-            SkyRoute.getDefault().publish("countdown/finish", "Countdown finished!", 0, false)
+            SkyRoute.getDefault().publish("countdown/finished", true, 0, false)
             _countDown.postValue(-1)
         }
     }

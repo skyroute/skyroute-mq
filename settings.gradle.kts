@@ -27,6 +27,7 @@ includeBuild("build-logic")
 
 include(":skyroute-mq")
 include(":sky-api")
+include(":sky-core")
 include(":sky-service")
 
 include(":example-app")

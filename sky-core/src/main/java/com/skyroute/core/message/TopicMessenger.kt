@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.service
+package com.skyroute.core.message
 
 /**
  * Type alias for the callback function to handle message arrivals.
  */
-typealias MessageArrival = (topic: String, message: Any) -> Unit
+typealias OnMessageArrival = (topic: String, payload: ByteArray) -> Unit
 
+/**
+ * Type alias for the callback function to handle disconnection events.
+ */
 typealias OnDisconnect = (code: Int?, reason: String?) -> Unit
 
 /**
@@ -48,18 +51,18 @@ interface TopicMessenger {
      * Publish a message to a topic with a specified QoS.
      *
      * @param topic The topic to publish to.
-     * @param message The message to publish.
+     * @param message The message payload to publish in [ByteArray].
      * @param qos The Quality of Service level (0, 1, or 2, default is 0).
      * @param retain Whether to retain the message (default is `false`).
      */
-    fun publish(topic: String, message: Any, qos: Int = 0, retain: Boolean = false, ttlInSeconds: Long? = null)
+    fun publish(topic: String, message: ByteArray, qos: Int = 0, retain: Boolean = false, ttlInSeconds: Long? = null)
 
     /**
      * Register a callback to handle incoming messages for a specific topic.
      *
      * @param callback A function that processes the received message.
      */
-    fun onMessageArrival(callback: MessageArrival)
+    fun onMessageArrival(callback: OnMessageArrival)
 
     /**
      * Register a callback to handle disconnection events.

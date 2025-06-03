@@ -19,9 +19,11 @@ import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Binder
 import android.os.IBinder
 import android.util.Log
+import com.skyroute.core.message.OnDisconnect
+import com.skyroute.core.message.OnMessageArrival
+import com.skyroute.core.message.TopicMessenger
 import com.skyroute.service.config.MqttConfig
 import com.skyroute.service.util.MetadataUtils.toMqttConfig
 import kotlinx.coroutines.CoroutineScope
@@ -50,13 +52,13 @@ import java.io.File
  */
 class SkyRouteService : Service(), TopicMessenger, MqttController {
 
-    private val binder = SkyRouteBinder()
+    private val binder = SkyRouteBinder(this)
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val pendingRequests = mutableListOf<() -> Unit>()
 
     private lateinit var mqttClient: IMqttAsyncClient
     private lateinit var config: MqttConfig
-    private var onMessageArrivalCallback: MessageArrival? = null
+    private var onMessageArrivalCallback: OnMessageArrival? = null
     private var onDisconnectCallback: OnDisconnect? = null
 
     /**
@@ -113,7 +115,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
                 mqttClient.setCallback(object : MqttCallback {
                     override fun disconnected(response: MqttDisconnectResponse?) {
-                        Log.e(TAG, "MQTT disconnected! ${response.toString()}")
+                        Log.e(TAG, "MQTT disconnected! $response")
                         onDisconnectCallback?.invoke(response?.returnCode, response?.reasonString)
                     }
 
@@ -123,9 +125,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
                     override fun messageArrived(topic: String, message: MqttMessage) {
                         Log.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
-                        // TODO: Handle message arrival by automatically parsing the message
-                        //  into the correct format using the given adapter (gson, moshi, xml, etc)
-                        onMessageArrivalCallback?.invoke(topic, message.toString())
+                        onMessageArrivalCallback?.invoke(topic, message.payload)
                     }
 
                     override fun deliveryComplete(token: IMqttToken?) {
@@ -239,7 +239,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         }
     }
 
-    override fun publish(topic: String, message: Any, qos: Int, retain: Boolean, ttlInSeconds: Long?) {
+    override fun publish(topic: String, message: ByteArray, qos: Int, retain: Boolean, ttlInSeconds: Long?) {
         if (!isConnected()) {
             Log.w(TAG, "MQTT client not connected. Request queued.")
             pendingRequests.add { publish(topic, message, qos, retain) }
@@ -247,8 +247,8 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         }
 
         serviceScope.launch {
-            Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '$message'")
-            val msg = MqttMessage(message.toString().toByteArray()).apply {
+            Log.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${String(message)}'")
+            val msg = MqttMessage(message).apply {
                 this.qos = qos
                 this.isRetained = retain
 
@@ -261,7 +261,7 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
         }
     }
 
-    override fun onMessageArrival(callback: MessageArrival) {
+    override fun onMessageArrival(callback: OnMessageArrival) {
         this.onMessageArrivalCallback = callback
     }
 
@@ -300,21 +300,6 @@ class SkyRouteService : Service(), TopicMessenger, MqttController {
 
     override fun isConnected(): Boolean {
         return ::mqttClient.isInitialized && mqttClient.isConnected
-    }
-
-    /**
-     * A [Binder] subclass that allows clients to bind to the [SkyRouteService] and interact with its methods.
-     */
-    inner class SkyRouteBinder : Binder() {
-
-        /**
-         * Retrieves the [TopicMessenger] instance for interacting with the service.
-         *
-         * @return The [TopicMessenger] instance associated with the service.
-         */
-        fun getTopicMessenger(): TopicMessenger = this@SkyRouteService
-
-        fun getMqttController(): MqttController = this@SkyRouteService
     }
 
     companion object {

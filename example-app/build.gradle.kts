@@ -54,6 +54,5 @@ dependencies {
     implementation(project(":sky-api"))
     implementation(project(":sky-service"))
 
-    implementation(libs.gson)
     implementation(libs.androidx.lifecycle.viewmodel)
 }

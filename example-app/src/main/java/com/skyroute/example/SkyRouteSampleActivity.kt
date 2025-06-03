@@ -23,7 +23,6 @@ import com.skyroute.api.SkyRoute
 import com.skyroute.api.Subscribe
 import com.skyroute.api.ThreadMode
 import com.skyroute.example.databinding.ActivitySkyRouteSampleBinding
-import com.skyroute.example.model.RandomNames
 
 /**
  * An example activity that demonstrates the usage of SkyRouteMQ.
@@ -36,17 +35,13 @@ class SkyRouteSampleActivity : AppCompatActivity() {
     private lateinit var viewModel: CountDownViewModel
     private var isFirstAppendLog = true
 
-    override fun onStart() {
-        super.onStart()
-
-        SkyRoute.getDefault().register(this)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivitySkyRouteSampleBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        SkyRoute.getDefault().register(this)
 
         setupPublishButton()
 
@@ -96,25 +91,20 @@ class SkyRouteSampleActivity : AppCompatActivity() {
         binding.tvLogs.append("$message\n")
     }
 
-    @Subscribe(topic = "test/abc", threadMode = ThreadMode.MAIN)
+    @Subscribe(topic = "skyroute/abc", threadMode = ThreadMode.MAIN)
     fun subscribeToAbc(message: String) {
         appendLogs("Received message on topic 'topic/abc': $message")
     }
 
-    @Subscribe(topic = "test/+/temperature", threadMode = ThreadMode.MAIN)
-    fun subscribeToTemperature(temperature: String, wildcards: List<String>) {
+    @Subscribe(topic = "skyroute/+/temperature", threadMode = ThreadMode.MAIN)
+    fun subscribeToTemperature(temperature: Int, wildcards: List<String>) {
         // Sample: Single-level wildcard subscription
-        appendLogs("Received temperature for '${wildcards.joinToString()}': $temperature")
+        appendLogs("Received temperature for '${wildcards.joinToString()}': $temperature°C")
     }
 
-    @Subscribe(topic = "xyz/#", qos = 1, threadMode = ThreadMode.MAIN)
+    @Subscribe(topic = "skyroute/topic/#", qos = 1, threadMode = ThreadMode.MAIN)
     fun subscribeToXyz(message: String, wildcards: List<String>) {
         // Sample: Multi-level wildcard subscription
         appendLogs("Received message on topic '${wildcards.joinToString()}': $message")
-    }
-
-    @Subscribe(topic = "test/random-names", threadMode = ThreadMode.MAIN)
-    fun subscribeToNames(data: RandomNames) {
-        appendLogs("Received message on topic 'test/random-names': $data")
     }
 }

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.skyroute.api"
+    namespace = "com.skyroute.core"
     compileSdk = 35
 
     defaultConfig {
@@ -37,14 +37,5 @@ android {
 
 dependencies {
 
-    implementation(project(":sky-core"))
-    implementation(project(":sky-service"))
-
-    implementation(libs.kotlin.reflection)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
 }

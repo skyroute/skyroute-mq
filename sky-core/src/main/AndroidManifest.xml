@@ -13,11 +13,4 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">SkyRouteMQ Demo</string>
-    <string name="hint_topic">Topic</string>
-    <string name="hint_message">Message</string>
-    <string name="btn_publish">Publish</string>
-    <string name="btn_clear">Clear Logs</string>
-    <string name="placeholder_logs" tools:ignore="TypographyEllipsis">Logs will appear here...</string>
-</resources>
+<manifest />

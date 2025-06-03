@@ -37,6 +37,8 @@ android {
 
 dependencies {
 
+    implementation(project(":sky-core"))
+
     implementation(libs.kotlin.reflection)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
