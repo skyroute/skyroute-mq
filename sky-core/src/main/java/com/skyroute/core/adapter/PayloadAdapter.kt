@@ -30,15 +30,6 @@ package com.skyroute.core.adapter
 interface PayloadAdapter {
 
     /**
-     * TODO: Way to install PayloadAdapter (remove me later!)
-     * 1. Global
-     *    Creating builder-pattern to accommodate `setPayloadAdapter` method.
-     * 2. Per-Subscriber/Per-Publisher
-     *    Creating new property in `@Subscribe` annotation, e.g. `@Subscribe(topic = "...", payloadAdapter = GsonPayloadAdapter::class)`.
-     *    For publish, use `SkyRoute.publish(topic, message, payloadAdapter = GsonPayloadAdapter::class)`.
-     */
-
-    /**
      * Content type indicator (e.g., "application/json", "text/plain").
      * This can be used for logging or setting MQTT 5.0 user properties.
      */

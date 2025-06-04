@@ -15,6 +15,10 @@
  */
 package com.skyroute.api
 
+import com.skyroute.core.adapter.DefaultPayloadAdapter
+import com.skyroute.core.adapter.PayloadAdapter
+import kotlin.reflect.KClass
+
 /**
  * Identifies a method as a subscriber to a topic in the SkyRouteMQ event system.
  *
@@ -41,4 +45,5 @@ annotation class Subscribe(
     val topic: String,
     val qos: Int = 0,
     val threadMode: ThreadMode = ThreadMode.MAIN,
+    val adapter: KClass<out PayloadAdapter> = DefaultPayloadAdapter::class,
 )

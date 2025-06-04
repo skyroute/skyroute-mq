@@ -15,7 +15,10 @@
  */
 package com.skyroute.api
 
+import com.skyroute.core.adapter.DefaultPayloadAdapter
+import com.skyroute.core.adapter.PayloadAdapter
 import java.lang.reflect.Method
+import kotlin.reflect.KClass
 
 /**
  * Represents a method that subscribes to a specific topic in the MQTT system.
@@ -36,4 +39,5 @@ internal data class SubscriberMethod(
     val threadMode: ThreadMode = ThreadMode.MAIN,
     val topic: String,
     val qos: Int,
+    val adapterClass: KClass<out PayloadAdapter> = DefaultPayloadAdapter::class,
 )

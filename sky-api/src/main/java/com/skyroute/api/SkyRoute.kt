@@ -26,6 +26,8 @@ import android.os.Looper
 import android.util.Log
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
+import com.skyroute.core.adapter.DefaultPayloadAdapter
+import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.message.OnDisconnect
 import com.skyroute.core.message.OnMessageArrival
 import com.skyroute.core.message.TopicMessenger
@@ -37,6 +39,7 @@ import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.Volatile
+import kotlin.reflect.KClass
 
 /**
  * SkyRoute is the core class that manage MQTT connection and message subscriptions.
@@ -71,6 +74,8 @@ class SkyRoute internal constructor(
     private val subscriptionsByTopic: MutableMap<String, CopyOnWriteArrayList<Subscription>> = ConcurrentHashMap()
     private val typesBySubscriber: MutableMap<Any, MutableList<String>> = ConcurrentHashMap()
     private val pendingRegistrations = mutableListOf<Any>()
+
+    private val adapterCache: MutableMap<KClass<out PayloadAdapter>, PayloadAdapter> = ConcurrentHashMap()
 
     private var topicMessenger: TopicMessenger? = null
     private var mqttController: MqttController? = null
@@ -181,6 +186,7 @@ class SkyRoute internal constructor(
             val topic = subscribeAnnotation.topic
             val qos = subscribeAnnotation.qos
             val threadMode = subscribeAnnotation.threadMode
+            val adapterClass = subscribeAnnotation.adapter
 
             // Wrap the method as a lambda
             val subscriberMethod = SubscriberMethod(
@@ -189,6 +195,7 @@ class SkyRoute internal constructor(
                 threadMode = threadMode,
                 topic = topic,
                 qos = qos,
+                adapterClass = adapterClass,
             )
 
             val subscription = Subscription(subscriber, subscriberMethod)
@@ -215,22 +222,36 @@ class SkyRoute internal constructor(
 
         val method = subscription.subscriberMethod.method
         val threadMode = subscription.subscriberMethod.threadMode
-        val instance = subscription.subscriber
+        val subscriber = subscription.subscriber
+
+        // Use the globally configured PayloadAdapter by default
+        var adapter = builder.payloadAdapter
+
+        // If a custom adapter is defined, try to retrieve it from the cache or instantiate it
+        subscription.subscriberMethod.adapterClass.let { adapterClass ->
+            if (adapterClass != DefaultPayloadAdapter::class) {
+                adapter = adapterCache.getOrPut(adapterClass) {
+                    adapterClass.objectInstance ?: adapterClass.java.getDeclaredConstructor().newInstance()
+                }
+            }
+        }
 
         val invoke = lambda@{
             try {
                 val params = method.parameterTypes
-                val decoded = builder.payloadAdapter.decode(message, params[0])
+                val decoded = adapter.decode(message, params[0])
 
                 val args = when (params.size) {
                     1 -> arrayOf(decoded)
                     2 -> arrayOf(decoded, wildcards ?: emptyList<String>())
-                    else -> throw IllegalArgumentException("Method ${method.name} in class ${instance::class.java.name} must have 1 or 2 parameters")
+                    else -> throw IllegalArgumentException(
+                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
+                    )
                 }
 
                 if (args[0] == null) return@lambda // Deserialization failed
 
-                method.invoke(instance, *args)
+                method.invoke(subscriber, *args)
             } catch (e: InvocationTargetException) {
                 Log.e(TAG, "Method invocation failed", e)
             } catch (e: Exception) {
