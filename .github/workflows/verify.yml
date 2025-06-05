@@ -1,0 +1,65 @@
+name: 🛡️ Pull Request Checks – Build & Test
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    name: Verify Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+
+      - name: 📦 Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: 📥 Prepare Gradle Wrapper
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      - name: 📦 Install Android SDK
+        run: |
+          set e
+
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+
+          echo "::group::Downloading Android command line tools"
+          wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
+          unzip tools.zip -d tmp
+          echo "::endgroup::"
+
+          echo "::group::Setting up SDK directory structure"
+          mkdir -p latest
+          mv tmp/cmdline-tools/* latest/
+          echo "::endgroup::"
+
+          echo "::group::Installing Android SDK components"
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk \
+            "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+          echo "::endgroup::"
+
+      - name: 🧭 Set Android SDK path
+        run: echo "sdk.dir=$HOME/android-sdk" > local.properties
+
+      - name: 🛠️ Build Project
+        run: ./gradlew build --no-daemon
+
+      - name: 🧪 Run Tests
+        run: ./gradlew testDebugUnitTest --no-daemon
