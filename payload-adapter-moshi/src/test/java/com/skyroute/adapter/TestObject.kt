@@ -16,7 +16,7 @@
 package com.skyroute.adapter
 
 /**
- * A test object for GsonPayloadAdapterTest.
+ * A test object for MoshiPayloadAdapterTest.
  *
  * @author Andre Suryana
  */

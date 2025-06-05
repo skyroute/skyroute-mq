@@ -17,6 +17,7 @@ package com.skyroute.adapter
 
 import com.skyroute.core.adapter.PayloadAdapter
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 /**
  * A [PayloadAdapter] implementation using Moshi for JSON serialization.
@@ -24,7 +25,9 @@ import com.squareup.moshi.Moshi
  * @author Andre Suryana
  */
 class MoshiPayloadAdapter(
-    private val moshi: Moshi = Moshi.Builder().build(),
+    private val moshi: Moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build(),
 ) : PayloadAdapter {
 
     override val contentType: String = "application/json"
