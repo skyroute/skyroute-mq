@@ -24,11 +24,11 @@ import com.skyroute.core.adapter.PayloadAdapter
  *
  * @author Andre Suryana
  */
-object DefaultPayloadAdapter : PayloadAdapter {
+class DefaultPayloadAdapter : PayloadAdapter {
 
     override val contentType: String = "text/plain"
 
-    override fun <T> encode(payload: T): ByteArray {
+    override fun <T> encode(payload: T, type: Class<out T>): ByteArray {
         return when (payload) {
             is String,
             is Int,

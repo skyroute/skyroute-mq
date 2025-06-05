@@ -15,6 +15,9 @@
  */
 package com.skyroute.api.adapter
 
+import com.skyroute.core.adapter.PayloadAdapter
+import com.skyroute.core.adapter.decode
+import com.skyroute.core.adapter.encode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,63 +26,65 @@ import org.junit.Test
  */
 class DefaultPayloadAdapterTest {
 
+    private val adapter: PayloadAdapter = DefaultPayloadAdapter()
+
     @Test
     fun `test encode and decode String`() {
         val original = "Sky Route!"
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, String::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<String>(bytes)
         assertEquals(original, decoded)
     }
 
     @Test
     fun `test encode and decode Int`() {
         val original = 42
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, Int::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<Int>(bytes)
         assertEquals(original, decoded)
     }
 
     @Test
     fun `test encode and decode Long`() {
         val original = 123456789L
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, Long::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<Long>(bytes)
         assertEquals(original, decoded)
     }
 
     @Test
     fun `test encode and decode Double`() {
         val original = 3.14159
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, Double::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<Double>(bytes)
         assertEquals(original, decoded, 0.0001)
     }
 
     @Test
     fun `test encode and decode Float`() {
         val original = 2.71828f
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, Float::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<Float>(bytes)
         assertEquals(original, decoded, 0.0001f)
     }
 
     @Test
     fun `test encode and decode Boolean`() {
         val original = true
-        val bytes = DefaultPayloadAdapter.encode(original)
-        val decoded = DefaultPayloadAdapter.decode(bytes, Boolean::class.java)
+        val bytes = adapter.encode(original)
+        val decoded = adapter.decode<Boolean>(bytes)
         assertEquals(original, decoded)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `test unsupported encode type`() {
         val original = object {}
-        DefaultPayloadAdapter.encode(original)
+        adapter.encode(original)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `test unsupported decode type`() {
         val bytes = "Sky Route!".toByteArray()
-        DefaultPayloadAdapter.decode(bytes, Object::class.java)
+        adapter.decode<Any>(bytes)
     }
 }

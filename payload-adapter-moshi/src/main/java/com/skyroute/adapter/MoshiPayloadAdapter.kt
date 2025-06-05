@@ -15,35 +15,28 @@
  */
 package com.skyroute.adapter
 
-import com.google.gson.Gson
 import com.skyroute.core.adapter.PayloadAdapter
-import com.skyroute.core.util.Logger
+import com.squareup.moshi.Moshi
 
 /**
- * A [PayloadAdapter] implementation using Gson for JSON serialization.
+ * A [PayloadAdapter] implementation using Moshi for JSON serialization.
  *
  * @author Andre Suryana
  */
-class GsonPayloadAdapter(
-    private val gson: Gson = Gson(),
-    private val logger: Logger = Logger.Default(),
+class MoshiPayloadAdapter(
+    private val moshi: Moshi = Moshi.Builder().build(),
 ) : PayloadAdapter {
 
     override val contentType: String = "application/json"
 
     override fun <T> encode(payload: T, type: Class<out T>): ByteArray {
-        val json = gson.toJson(payload, type)
-        logger.d(TAG, "encode: $json")
+        val json = moshi.adapter<T>(type).toJson(payload)
         return json.toByteArray(Charsets.UTF_8)
     }
 
     override fun <T> decode(payload: ByteArray, type: Class<T>): T {
         val json = payload.toString(Charsets.UTF_8)
-        logger.d(TAG, "decode: $json")
-        return gson.fromJson(json, type)
-    }
-
-    companion object {
-        private const val TAG = "GsonPayloadAdapter"
+        return moshi.adapter(type).fromJson(json)
+            ?: throw IllegalStateException("Failed to decode JSON")
     }
 }

@@ -39,9 +39,10 @@ interface PayloadAdapter {
      * Encodes an object into a [ByteArray] that will be sent over MQTT.
      *
      * @param payload The object to encode.
+     * @param type The type of the object.
      * @return The encoded bytes.
      */
-    fun <T> encode(payload: T): ByteArray
+    fun <T> encode(payload: T, type: Class<out T>): ByteArray
 
     /**
      * Decodes a [ByteArray] received from MQTT into an object of the desired type.

@@ -75,7 +75,7 @@ class SkyRouteBuilder {
      * By default, it uses [DefaultPayloadAdapter], which supports basic types such as String, Int, Boolean, etc.
      * You can provide a custom adapter such as Gson, Moshi, or XML-based adapters.
      */
-    var payloadAdapter: PayloadAdapter = DefaultPayloadAdapter
+    var payloadAdapter: PayloadAdapter = DefaultPayloadAdapter()
         private set
 
     /**

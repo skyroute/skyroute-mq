@@ -18,18 +18,15 @@ package com.skyroute.adapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.adapter.decode
 import com.skyroute.core.adapter.encode
-import com.skyroute.core.util.Logger
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
  * @author Andre Suryana
  */
-class GsonPayloadAdapterTest {
+class MoshiPayloadAdapterTest {
 
-    private val adapter: PayloadAdapter = GsonPayloadAdapter(
-        logger = Logger.Stdout(),
-    )
+    private val adapter: PayloadAdapter = MoshiPayloadAdapter()
 
     @Test
     fun `test encode and decode object`() {

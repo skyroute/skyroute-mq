@@ -31,5 +31,6 @@ include(":sky-core")
 include(":sky-service")
 
 include(":payload-adapter-gson")
+include(":payload-adapter-moshi")
 
 include(":example-app")

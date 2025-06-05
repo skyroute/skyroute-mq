@@ -239,6 +239,12 @@ class SkyRoute internal constructor(
         val invoke = lambda@{
             try {
                 val params = method.parameterTypes
+                if (params.isEmpty() || params.size > 2) {
+                    throw IllegalArgumentException(
+                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
+                    )
+                }
+
                 val decoded = adapter.decode(message, params[0])
 
                 val args = when (params.size) {
@@ -248,8 +254,6 @@ class SkyRoute internal constructor(
                         "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
                     )
                 }
-
-                if (args[0] == null) return@lambda // Deserialization failed
 
                 method.invoke(subscriber, *args)
             } catch (e: InvocationTargetException) {
@@ -377,7 +381,7 @@ class SkyRoute internal constructor(
         }
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
 
-        val encoded = builder.payloadAdapter.encode(message)
+        val encoded = builder.payloadAdapter.encode(message, message::class.java)
         topicMessenger?.publish(topic, encoded, qos, retain, ttl)
     }
 
