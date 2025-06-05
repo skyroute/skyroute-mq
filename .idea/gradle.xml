@@ -23,12 +23,15 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/build-logic" />
             <option value="$PROJECT_DIR$/example-app" />
+            <option value="$PROJECT_DIR$/payload-adapter-gson" />
+            <option value="$PROJECT_DIR$/payload-adapter-moshi" />
+            <option value="$PROJECT_DIR$/payload-adapter-xml" />
             <option value="$PROJECT_DIR$/sky-api" />
+            <option value="$PROJECT_DIR$/sky-core" />
             <option value="$PROJECT_DIR$/sky-service" />
             <option value="$PROJECT_DIR$/skyroute-mq" />
           </set>
         </option>
-        <option name="resolveExternalAnnotations" value="false" />
       </GradleProjectSettings>
     </option>
   </component>

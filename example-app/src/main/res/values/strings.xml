@@ -18,5 +18,6 @@
     <string name="hint_topic">Topic</string>
     <string name="hint_message">Message</string>
     <string name="btn_publish">Publish</string>
+    <string name="btn_clear">Clear Logs</string>
     <string name="placeholder_logs" tools:ignore="TypographyEllipsis">Logs will appear here...</string>
 </resources>

@@ -24,20 +24,22 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import com.google.gson.Gson
+import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
+import com.skyroute.core.adapter.PayloadAdapter
+import com.skyroute.core.message.OnDisconnect
+import com.skyroute.core.message.OnMessageArrival
+import com.skyroute.core.message.TopicMessenger
 import com.skyroute.service.MqttController
-import com.skyroute.service.OnDisconnect
+import com.skyroute.service.SkyRouteBinder
 import com.skyroute.service.SkyRouteService
-import com.skyroute.service.TopicMessenger
 import com.skyroute.service.config.MqttConfig
 import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import kotlin.concurrent.Volatile
+import kotlin.reflect.KClass
 
 /**
  * SkyRoute is the core class that manage MQTT connection and message subscriptions.
@@ -46,10 +48,14 @@ import kotlin.concurrent.Volatile
  *
  * @author Andre Suryana
  */
-class SkyRoute private constructor() {
+class SkyRoute internal constructor(
+    private val builder: SkyRouteBuilder = DEFAULT_BUILDER,
+) {
 
     companion object {
         private const val TAG = "SkyRoute"
+
+        private val DEFAULT_BUILDER = SkyRouteBuilder()
 
         @SuppressLint("StaticFieldLeak")
         @Volatile
@@ -69,7 +75,7 @@ class SkyRoute private constructor() {
     private val typesBySubscriber: MutableMap<Any, MutableList<String>> = ConcurrentHashMap()
     private val pendingRegistrations = mutableListOf<Any>()
 
-    private var executorService = Executors.newCachedThreadPool()
+    private val adapterCache: MutableMap<KClass<out PayloadAdapter>, PayloadAdapter> = ConcurrentHashMap()
 
     private var topicMessenger: TopicMessenger? = null
     private var mqttController: MqttController? = null
@@ -79,7 +85,7 @@ class SkyRoute private constructor() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             Log.i(TAG, "SkyRoute service connected!")
-            (binder as? SkyRouteService.SkyRouteBinder)?.let { skyRouteBinder ->
+            (binder as? SkyRouteBinder)?.let { skyRouteBinder ->
                 // Initialize interface
                 topicMessenger = skyRouteBinder.getTopicMessenger()
                 mqttController = skyRouteBinder.getMqttController()
@@ -92,21 +98,10 @@ class SkyRoute private constructor() {
                 }
 
                 // Register message arrival
-                topicMessenger?.onMessageArrival { topic, message ->
-                    val subscriptions = subscriptionsByTopic
-                        .filterKeys { it.matchesTopic(topic) }
-                        .values
-                        .flatten()
-
-                    subscriptions.forEach { subscription ->
-                        invokeMethod(subscription, message, extractWildcards(subscription.subscriberMethod.topic, topic))
-                    }
-                }
+                topicMessenger?.onMessageArrival(onMessageArrivalHandler)
 
                 synchronized(pendingRegistrations) {
-                    for (subscriber in pendingRegistrations) {
-                        internalRegister(subscriber)
-                    }
+                    pendingRegistrations.forEach { internalRegister(it) }
                     pendingRegistrations.clear()
                 }
             }
@@ -117,6 +112,20 @@ class SkyRoute private constructor() {
             topicMessenger = null
             bound = false
         }
+    }
+
+    private val onMessageArrivalHandler: OnMessageArrival = { topic, message ->
+        // Find all subscribers that have subscribed to this topic
+        subscriptionsByTopic.filterKeys { it.matchesTopic(topic) }
+            .values
+            .flatten()
+            .forEach { subscription ->
+                invokeMethod(
+                    subscription,
+                    message,
+                    extractWildcards(subscription.subscriberMethod.topic, topic),
+                )
+            }
     }
 
     /**
@@ -177,6 +186,7 @@ class SkyRoute private constructor() {
             val topic = subscribeAnnotation.topic
             val qos = subscribeAnnotation.qos
             val threadMode = subscribeAnnotation.threadMode
+            val adapterClass = subscribeAnnotation.adapter
 
             // Wrap the method as a lambda
             val subscriberMethod = SubscriberMethod(
@@ -185,6 +195,7 @@ class SkyRoute private constructor() {
                 threadMode = threadMode,
                 topic = topic,
                 qos = qos,
+                adapterClass = adapterClass,
             )
 
             val subscription = Subscription(subscriber, subscriberMethod)
@@ -199,66 +210,60 @@ class SkyRoute private constructor() {
     }
 
     /**
-     * Converts the received message to the expected type.
-     *
-     * @param message The message to be converted.
-     * @param expectedType The type that the message should be converted to.
-     * @return The converted message or null if deserialization fails.
-     */
-    private fun convertMessage(message: Any, expectedType: Class<*>): Any? {
-        return try {
-            when (expectedType) {
-                String::class.java -> message as String
-                Int::class.java, java.lang.Integer::class.java -> (message as String).toInt()
-                Long::class.java, java.lang.Long::class.java -> (message as String).toLong()
-                Double::class.java, java.lang.Double::class.java -> (message as String).toDouble()
-                Float::class.java, java.lang.Float::class.java -> (message as String).toFloat()
-                Boolean::class.java, java.lang.Boolean::class.java -> (message as String).toBoolean()
-                else -> Gson().fromJson(message as String, expectedType)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to deserialize message to ${expectedType.name}", e)
-            null
-        }
-    }
-
-    /**
      * Invokes the subscriber's method with the given message and thread mode.
      *
      * @param subscription The subscription that holds the subscriber method.
      * @param message The message to pass to the subscriber's method.
      * @param wildcards Any wildcards extracted from the topic.
      */
-    private fun invokeMethod(subscription: Subscription, message: Any, wildcards: List<String>? = null) {
+    private fun invokeMethod(subscription: Subscription, message: ByteArray, wildcards: List<String>? = null) {
         // Check if the subscription is still active
         if (!subscription.active) return
 
         val method = subscription.subscriberMethod.method
         val threadMode = subscription.subscriberMethod.threadMode
-        val instance = subscription.subscriber
+        val subscriber = subscription.subscriber
+
+        // Use the globally configured PayloadAdapter by default
+        var adapter = builder.payloadAdapter
+
+        // If a custom adapter is defined, try to retrieve it from the cache or instantiate it
+        subscription.subscriberMethod.adapterClass.let { adapterClass ->
+            if (adapterClass != DefaultPayloadAdapter::class) {
+                adapter = adapterCache.getOrPut(adapterClass) {
+                    adapterClass.objectInstance ?: adapterClass.java.getDeclaredConstructor().newInstance()
+                }
+            }
+        }
 
         val invoke = lambda@{
             try {
                 val params = method.parameterTypes
-                val args = when (params.size) {
-                    1 -> arrayOf(convertMessage(message, params[0]))
-
-                    2 -> arrayOf(
-                        convertMessage(message, params[0]),
-                        wildcards ?: emptyList<String>(),
+                if (params.isEmpty() || params.size > 2) {
+                    throw IllegalArgumentException(
+                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
                     )
-
-                    else -> throw IllegalArgumentException("Method ${method.name} in class ${instance::class.java.name} must have 1 or 2 parameters")
                 }
 
-                if (args[0] == null) return@lambda // Deserialization failed
+                val decoded = adapter.decode(message, params[0])
 
-                method.invoke(instance, *args)
+                val args = when (params.size) {
+                    1 -> arrayOf(decoded)
+                    2 -> arrayOf(decoded, wildcards ?: emptyList<String>())
+                    else -> throw IllegalArgumentException(
+                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
+                    )
+                }
+
+                method.invoke(subscriber, *args)
             } catch (e: InvocationTargetException) {
                 Log.e(TAG, "Method invocation failed", e)
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error during method invocation", e)
             }
+            // TODO: Should determine to handle exception or not,
+            //  we can rethrow it if we want (maybe configured by flag in builder)
+            //  or just log it and continue.
         }
 
         when (threadMode) {
@@ -272,14 +277,14 @@ class SkyRoute private constructor() {
 
             ThreadMode.BACKGROUND -> {
                 if (Looper.myLooper() == Looper.getMainLooper()) {
-                    executorService.execute { invoke() }
+                    builder.executorService.execute { invoke() }
                 } else {
                     invoke()
                 }
             }
 
             ThreadMode.ASYNC -> {
-                executorService.execute { invoke() }
+                builder.executorService.execute { invoke() }
             }
         }
     }
@@ -352,7 +357,6 @@ class SkyRoute private constructor() {
      * @param message The message to be published.
      * @param qos The Quality of Service level for the message.
      * @param retain Whether the message should be retained after delivery.
-     * @param ttl The Time To Live (TTL) for the message in seconds.
      * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
      */
     fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
@@ -377,18 +381,16 @@ class SkyRoute private constructor() {
         }
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
 
-        topicMessenger?.publish(topic, message, qos, retain, ttl)
+        val encoded = builder.payloadAdapter.encode(message, message::class.java)
+        topicMessenger?.publish(topic, encoded, qos, retain, ttl)
     }
 
-    /**
-     * Sets a custom [ExecutorService] for internal asynchronous operations.
-     *
-     * @param executor The executor to use for background tasks.
-     */
-    fun setExecutor(executor: ExecutorService) {
-        this.executorService = executor
-    }
-
+    // FIXME: This implementation overrides any previously set callback, which makes the disconnect listener global.
+    //        This could lead to unintended side effects if multiple components attempt to register their own callbacks.
+    //        Consider alternative approaches:
+    //        - Maintain a list of callbacks and invoke all of them on disconnect.
+    //        - Allow each component to register its own listener with isolation.
+    //        - Introduce a dispatcher or observer pattern to support multiple listeners.
     fun setOnDisconnectCallback(callback: OnDisconnect) {
         topicMessenger?.onDisconnect(callback)
     }

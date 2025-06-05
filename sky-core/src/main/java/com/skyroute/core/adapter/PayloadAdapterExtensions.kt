@@ -13,28 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.example.model
-
-import com.google.gson.annotations.SerializedName
+package com.skyroute.core.adapter
 
 /**
- * A data class representing a random names object.
+ * Encodes the payload to a [ByteArray], inferring the type from the generic parameter.
  *
- * @author Andre Suryana
+ * Example:
+ * ```
+ * val bytes = adapter.encode(myData)
+ * ```
  */
-data class RandomNames(
+inline fun <reified T> PayloadAdapter.encode(payload: T): ByteArray =
+    encode(payload, T::class.java)
 
-    @SerializedName("uid")
-    val uid: String,
-
-    @SerializedName("num_of_names")
-    val numOfNames: Int,
-
-    @SerializedName("names")
-    val names: List<String>,
-) {
-
-    override fun toString(): String {
-        return "RandomNames(uid='$uid', numOfNames=$numOfNames, names=[${names.joinToString()}])"
-    }
-}
+/**
+ * Decodes the [ByteArray] payload into an instance of the specified type.
+ *
+ * Example:
+ * ```
+ * val obj: MyType = adapter.decode(bytes)
+ * ```
+ */
+inline fun <reified T> PayloadAdapter.decode(payload: ByteArray): T =
+    decode(payload, T::class.java)
