@@ -30,4 +30,6 @@ include(":sky-api")
 include(":sky-core")
 include(":sky-service")
 
+include(":payload-adapter-gson")
+
 include(":example-app")
