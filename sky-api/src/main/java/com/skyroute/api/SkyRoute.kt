@@ -24,9 +24,9 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
-import com.skyroute.core.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.message.OnDisconnect
 import com.skyroute.core.message.OnMessageArrival

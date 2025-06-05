@@ -15,7 +15,7 @@
  */
 package com.skyroute.api
 
-import com.skyroute.core.adapter.DefaultPayloadAdapter
+import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
 import kotlin.reflect.KClass
 

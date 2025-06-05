@@ -15,7 +15,7 @@
  */
 package com.skyroute.api
 
-import com.skyroute.core.adapter.DefaultPayloadAdapter
+import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
