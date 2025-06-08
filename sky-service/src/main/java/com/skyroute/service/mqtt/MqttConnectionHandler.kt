@@ -21,10 +21,6 @@ import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.core.util.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.IMqttToken
 import org.eclipse.paho.mqttv5.client.MqttCallback
@@ -33,6 +29,7 @@ import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
 import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Implementation of the MQTT handler with Paho MQTT v5.
@@ -44,12 +41,11 @@ class MqttConnectionHandler(
     private val logger: Logger = Logger.Default(),
     private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
     private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
-    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : MqttHandler {
 
     private lateinit var mqttClient: IMqttAsyncClient
 
-    private val pendingRequests = mutableListOf<() -> Unit>()
+    private val pendingRequests = CopyOnWriteArrayList<() -> Unit>()
 
     private var clientId: String? = null
     private var onMessageArrivalCallback: OnMessageArrival? = null
@@ -62,12 +58,15 @@ class MqttConnectionHandler(
         }
 
         // Generate client ID for the session
-        logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '$clientId'")
         this.mqttClient = clientFactory.create(
             config.brokerUrl,
-            config.getClientId().run { clientId = this; this }, // Generate new client ID for the session and assign it to the client factory
+            config.getClientId().run {
+                clientId = this
+                this
+            }, // Generate new client ID for the session and assign it to the client factory
             persistenceFactory.create(),
         )
+        logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '$clientId'")
 
         val options = MqttConnectionOptions().apply {
             serverURIs = arrayOf(config.brokerUrl)
@@ -160,10 +159,8 @@ class MqttConnectionHandler(
             return
         }
 
-        coroutineScope.launch {
-            logger.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
-            mqttClient.subscribe(topic, qos)
-        }
+        logger.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
+        mqttClient.subscribe(topic, qos)
     }
 
     override fun unsubscribe(topic: String) {
@@ -173,10 +170,8 @@ class MqttConnectionHandler(
             return
         }
 
-        coroutineScope.launch {
-            logger.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
-            mqttClient.unsubscribe(topic)
-        }
+        logger.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
+        mqttClient.unsubscribe(topic)
     }
 
     override fun publish(topic: String, message: ByteArray, qos: Int, retain: Boolean, ttlInSeconds: Long?) {
@@ -186,19 +181,17 @@ class MqttConnectionHandler(
             return
         }
 
-        coroutineScope.launch {
-            logger.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${String(message)}'")
-            val msg = MqttMessage(message).apply {
-                this.qos = qos
-                this.isRetained = retain
+        logger.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${String(message)}'")
+        val msg = MqttMessage(message).apply {
+            this.qos = qos
+            this.isRetained = retain
 
-                // Set message TTL if provided
-                this.properties = MqttProperties().apply {
-                    messageExpiryInterval = ttlInSeconds
-                }
+            // Set message TTL if provided
+            this.properties = MqttProperties().apply {
+                messageExpiryInterval = ttlInSeconds
             }
-            mqttClient.publish(topic, msg)
         }
+        mqttClient.publish(topic, msg)
     }
 
     override fun onMessageArrival(callback: OnMessageArrival) {
