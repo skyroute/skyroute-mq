@@ -27,15 +27,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.IMqttToken
-import org.eclipse.paho.mqttv5.client.MqttAsyncClient
 import org.eclipse.paho.mqttv5.client.MqttCallback
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions
 import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
-import org.eclipse.paho.mqttv5.client.persist.MqttDefaultFilePersistence
 import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties
-import java.io.File
 
 /**
  * Implementation of the MQTT handler with Paho MQTT v5.
@@ -45,18 +42,16 @@ import java.io.File
 class MqttConnectionHandler(
     private val context: Context,
     private val logger: Logger = Logger.Default(),
+    private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
+    private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
+    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : MqttHandler {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private lateinit var mqttClient: IMqttAsyncClient
-    private lateinit var config: MqttConfig
-
-    private var clientId: String? = null
-        get() = field ?: config.getClientId()
 
     private val pendingRequests = mutableListOf<() -> Unit>()
 
+    private var clientId: String? = null
     private var onMessageArrivalCallback: OnMessageArrival? = null
     private var onDisconnectCallback: OnDisconnect? = null
 
@@ -66,11 +61,12 @@ class MqttConnectionHandler(
             mqttClient.disconnect()
         }
 
+        // Generate client ID for the session
         logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '$clientId'")
-        this.mqttClient = MqttAsyncClient(
+        this.mqttClient = clientFactory.create(
             config.brokerUrl,
-            clientId,
-            createPersistence(),
+            config.getClientId().run { clientId = this; this }, // Generate new client ID for the session and assign it to the client factory
+            persistenceFactory.create(),
         )
 
         val options = MqttConnectionOptions().apply {
@@ -164,7 +160,7 @@ class MqttConnectionHandler(
             return
         }
 
-        scope.launch {
+        coroutineScope.launch {
             logger.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
             mqttClient.subscribe(topic, qos)
         }
@@ -177,7 +173,7 @@ class MqttConnectionHandler(
             return
         }
 
-        scope.launch {
+        coroutineScope.launch {
             logger.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
             mqttClient.unsubscribe(topic)
         }
@@ -190,7 +186,7 @@ class MqttConnectionHandler(
             return
         }
 
-        scope.launch {
+        coroutineScope.launch {
             logger.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${String(message)}'")
             val msg = MqttMessage(message).apply {
                 this.qos = qos
@@ -213,20 +209,11 @@ class MqttConnectionHandler(
         this.onDisconnectCallback = callback
     }
 
-    /**
-     * Creates and returns the MQTT persistence directory.
-     *
-     * @return A persistence object for MQTT client session.
-     */
-    private fun createPersistence(): MqttDefaultFilePersistence {
-        val persistenceDir = File(context.cacheDir, PERSISTENCE_DIR).apply {
-            if (!exists()) mkdirs() // Create directory if not exists
-        }
-        return MqttDefaultFilePersistence(persistenceDir.absolutePath)
-    }
+    override fun hasPendingRequests(): Boolean = pendingRequests.isNotEmpty()
+
+    override fun getClientId(): String? = clientId
 
     companion object {
         private const val TAG = "MqttConnectionHandler"
-        private const val PERSISTENCE_DIR = "skyroute"
     }
 }

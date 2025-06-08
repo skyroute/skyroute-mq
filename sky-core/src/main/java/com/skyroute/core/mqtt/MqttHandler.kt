@@ -80,4 +80,25 @@ interface MqttHandler {
      * @param callback A function that processes the disconnection event.
      */
     fun onDisconnect(callback: OnDisconnect)
+
+    /**
+     * Checks if there are any pending MQTT requests queued for execution.
+     *
+     * This can be used to determine whether any subscribe, unsubscribe, or publish
+     * requests are waiting to be executed once the MQTT connection is established.
+     *
+     * @return `true` if there is at least one pending request, `false` otherwise.
+     */
+    fun hasPendingRequests(): Boolean
+
+    /**
+     * Returns the current MQTT client ID.
+     *
+     * This is typically the client ID used when establishing the MQTT connection.
+     * If the connection has not been established yet or already disconnected,
+     * this will return `null`.
+     *
+     * @return The current client ID, or `null` if not connected.
+     */
+    fun getClientId(): String?
 }
