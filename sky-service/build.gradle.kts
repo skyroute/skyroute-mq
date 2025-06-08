@@ -42,8 +42,15 @@ dependencies {
     implementation(libs.kotlin.reflection)
     implementation(libs.androidx.core.ktx)
 
-    testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.mockito)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.mockito.junit)
 
     // Paho MQTT Client
     implementation(libs.paho.client)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
