@@ -28,13 +28,12 @@ import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
 import com.skyroute.core.adapter.PayloadAdapter
-import com.skyroute.core.message.OnDisconnect
-import com.skyroute.core.message.OnMessageArrival
-import com.skyroute.core.message.TopicMessenger
-import com.skyroute.service.MqttController
-import com.skyroute.service.SkyRouteBinder
+import com.skyroute.core.mqtt.MqttConfig
+import com.skyroute.core.mqtt.MqttHandler
+import com.skyroute.core.mqtt.OnDisconnect
+import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.service.SkyRouteService
-import com.skyroute.service.config.MqttConfig
+import com.skyroute.service.SkyRouteService.SkyRouteBinder
 import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -77,39 +76,40 @@ class SkyRoute internal constructor(
 
     private val adapterCache: MutableMap<KClass<out PayloadAdapter>, PayloadAdapter> = ConcurrentHashMap()
 
-    private var topicMessenger: TopicMessenger? = null
-    private var mqttController: MqttController? = null
+    private var mqttHandler: MqttHandler? = null
     private var config: MqttConfig? = null
     private var bound = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             Log.i(TAG, "SkyRoute service connected!")
-            (binder as? SkyRouteBinder)?.let { skyRouteBinder ->
-                // Initialize interface
-                topicMessenger = skyRouteBinder.getTopicMessenger()
-                mqttController = skyRouteBinder.getMqttController()
-                bound = true
 
-                // Load the config from builder, this will ignore the defined config in manifest
-                config?.let {
-                    Log.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
-                    mqttController?.connect(it)
-                }
+            // Retrieve the handler via binder
+            if (binder == null || binder !is SkyRouteBinder) {
+                throw IllegalStateException("MQTT handler not retrieved properly")
+            }
 
-                // Register message arrival
-                topicMessenger?.onMessageArrival(onMessageArrivalHandler)
+            mqttHandler = binder.getMqttHandler()
+            bound = true
 
-                synchronized(pendingRegistrations) {
-                    pendingRegistrations.forEach { internalRegister(it) }
-                    pendingRegistrations.clear()
-                }
+            // Load the config from builder, this will ignore the defined config in manifest
+            config?.let {
+                Log.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
+                mqttHandler?.connect(it)
+            }
+
+            // Register message arrival
+            mqttHandler?.onMessageArrival(onMessageArrivalHandler)
+
+            synchronized(pendingRegistrations) {
+                pendingRegistrations.forEach { internalRegister(it) }
+                pendingRegistrations.clear()
             }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.w(TAG, "SkyRoute service disconnected!")
-            topicMessenger = null
+            mqttHandler = null
             bound = false
         }
     }
@@ -149,7 +149,7 @@ class SkyRoute internal constructor(
      * @param subscriber The subscriber object that has methods annotated with [Subscribe].
      */
     fun register(subscriber: Any) {
-        if (bound && mqttController?.isConnected() == true) {
+        if (bound && mqttHandler?.isConnected() == true) {
             internalRegister(subscriber)
         } else {
             Log.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
@@ -201,7 +201,7 @@ class SkyRoute internal constructor(
             val subscription = Subscription(subscriber, subscriberMethod)
 
             // Subscribe to the topic
-            topicMessenger?.subscribe(topic, qos)
+            mqttHandler?.subscribe(topic, qos)
 
             // Register into the maps
             subscriptionsByTopic.getOrPut(topic) { CopyOnWriteArrayList() }.add(subscription)
@@ -316,7 +316,7 @@ class SkyRoute internal constructor(
             subscriptions?.forEach { subscription ->
                 if (subscription.subscriber == subscriber) {
                     subscription.active = false
-                    topicMessenger?.unsubscribe(topic)
+                    mqttHandler?.unsubscribe(topic)
                     Log.d(TAG, "Marked subscription as inactive: ${subscription.subscriberMethod.description}")
                 }
             }
@@ -382,7 +382,7 @@ class SkyRoute internal constructor(
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")
 
         val encoded = builder.payloadAdapter.encode(message, message::class.java)
-        topicMessenger?.publish(topic, encoded, qos, retain, ttl)
+        mqttHandler?.publish(topic, encoded, qos, retain, ttl)
     }
 
     // FIXME: This implementation overrides any previously set callback, which makes the disconnect listener global.
@@ -392,6 +392,6 @@ class SkyRoute internal constructor(
     //        - Allow each component to register its own listener with isolation.
     //        - Introduce a dispatcher or observer pattern to support multiple listeners.
     fun setOnDisconnectCallback(callback: OnDisconnect) {
-        topicMessenger?.onDisconnect(callback)
+        mqttHandler?.onDisconnect(callback)
     }
 }

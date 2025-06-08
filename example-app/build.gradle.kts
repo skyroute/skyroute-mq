@@ -52,6 +52,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(project(":sky-api"))
+    implementation(project(":sky-core"))
     implementation(project(":sky-service"))
 
     implementation(libs.androidx.lifecycle.viewmodel)

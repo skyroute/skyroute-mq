@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.service.config
+package com.skyroute.core.mqtt
 
 /**
  * Configuration for establishing an MQTT connection.

@@ -17,7 +17,7 @@ package com.skyroute.example
 
 import android.app.Application
 import com.skyroute.api.SkyRoute
-import com.skyroute.service.config.MqttConfig
+import com.skyroute.core.mqtt.MqttConfig
 
 /**
  * An application class that initializes SkyRouteMQ when it is created.

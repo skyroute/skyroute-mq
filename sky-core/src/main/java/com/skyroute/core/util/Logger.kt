@@ -76,7 +76,7 @@ interface Logger {
      * @param msg The message to log.
      * @param tr An optional [Throwable] whose stack trace should be logged.
      */
-    fun e(tag: String, msg: String, tr: Throwable)
+    fun e(tag: String, msg: String, tr: Throwable?)
 
     /**
      * A default implementation of [Logger] that uses Android's [android.util.Log] for logging.
@@ -103,7 +103,7 @@ interface Logger {
             Log.e(tag, msg)
         }
 
-        override fun e(tag: String, msg: String, tr: Throwable) {
+        override fun e(tag: String, msg: String, tr: Throwable?) {
             Log.e(tag, msg, tr)
         }
     }
@@ -118,9 +118,9 @@ interface Logger {
         override fun i(tag: String, msg: String) = println("I/$tag: $msg")
         override fun w(tag: String, msg: String) = println("W/$tag: $msg")
         override fun e(tag: String, msg: String) = println("E/$tag: $msg")
-        override fun e(tag: String, msg: String, tr: Throwable) {
+        override fun e(tag: String, msg: String, tr: Throwable?) {
             println("E/$tag: $msg")
-            tr.printStackTrace()
+            tr?.printStackTrace()
         }
     }
 
@@ -133,6 +133,6 @@ interface Logger {
         override fun i(tag: String, msg: String) = Unit
         override fun w(tag: String, msg: String) = Unit
         override fun e(tag: String, msg: String) = Unit
-        override fun e(tag: String, msg: String, tr: Throwable) = Unit
+        override fun e(tag: String, msg: String, tr: Throwable?) = Unit
     }
 }

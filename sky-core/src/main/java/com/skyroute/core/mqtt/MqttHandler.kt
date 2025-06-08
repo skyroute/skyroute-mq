@@ -13,24 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.core.message
+package com.skyroute.core.mqtt
 
 /**
- * Type alias for the callback function to handle message arrivals.
- */
-typealias OnMessageArrival = (topic: String, payload: ByteArray) -> Unit
-
-/**
- * Type alias for the callback function to handle disconnection events.
- */
-typealias OnDisconnect = (code: Int?, reason: String?) -> Unit
-
-/**
- * Interface for handling MQTT topic-based messaging operations.
+ * Interface for handling MQTT operations.
  *
  * @author Andre Suryana
  */
-interface TopicMessenger {
+interface MqttHandler {
+
+    /**
+     * Connects to the MQTT broker using with the given configuration.
+     * Replaces any existing connection.
+     *
+     * @param config The configuration used for connecting to the broker.
+     */
+    fun connect(config: MqttConfig)
+
+    /**
+     * Disconnects from the MQTT broker connection.
+     */
+    fun disconnect()
+
+    /**
+     * Checks whether the client is currently connected to the MQTT broker.
+     *
+     * @return `true` if the client is connected, `false` otherwise.
+     */
+    fun isConnected(): Boolean
 
     /**
      * Subscribes to a topic with a specified QoS.

@@ -16,7 +16,7 @@
 package com.skyroute.service.util
 
 import android.os.Bundle
-import com.skyroute.service.config.MqttConfig
+import com.skyroute.core.mqtt.MqttConfig
 
 /**
  * Utility methods for extracting configuration objects from [Bundle] metadata,
