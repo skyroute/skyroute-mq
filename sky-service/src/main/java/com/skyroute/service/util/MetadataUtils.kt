@@ -15,8 +15,14 @@
  */
 package com.skyroute.service.util
 
+import android.content.Context
+import android.content.res.AssetManager
 import android.os.Bundle
 import com.skyroute.core.mqtt.MqttConfig
+import com.skyroute.core.mqtt.TlsConfig
+import com.skyroute.core.util.Logger
+import java.io.IOException
+import java.io.InputStream
 
 /**
  * Utility methods for extracting configuration objects from [Bundle] metadata,
@@ -26,10 +32,23 @@ import com.skyroute.core.mqtt.MqttConfig
  */
 object MetadataUtils {
 
+    private const val TAG = "MetadataUtils"
+
+    private var logger: Logger = Logger.Default()
+
+    /**
+     * Replaces the default logger with a custom implementation.
+     *
+     * @param logger The custom [Logger] to be used by this utility.
+     */
+    fun setLogger(logger: Logger) {
+        this.logger = logger
+    }
+
     /**
      * Converts a [Bundle] to an [MqttConfig], which defines MQTT connection parameters.
      */
-    fun Bundle.toMqttConfig() = MqttConfig(
+    fun Bundle.toMqttConfig(context: Context) = MqttConfig(
         brokerUrl = getString(KEY_BROKER_URL) ?: Defaults.MQTT_BROKER_URL,
         clientPrefix = getString(KEY_CLIENT_PREFIX) ?: Defaults.MQTT_CLIENT_PREFIX,
         cleanStart = getBoolean(KEY_CLEAN_START, Defaults.MQTT_CLEAN_START),
@@ -42,7 +61,54 @@ object MetadataUtils {
         maxReconnectDelay = getInt(KEY_MAX_RECONNECT_DELAY, Defaults.MQTT_MAX_RECONNECT_DELAY),
         username = getString(KEY_USERNAME),
         password = getString(KEY_PASSWORD),
+        tlsConfig = toTlsConfig(context),
     )
+
+    /**
+     * Converts a [Bundle] to a [TlsConfig].
+     */
+    private fun Bundle.toTlsConfig(context: Context): TlsConfig? {
+        val caCertPath = getString(KEY_CA_CERT_PATH)
+        if (caCertPath.isNullOrEmpty()) return null
+
+        val assetsManager = context.applicationContext.assets
+
+        return try {
+            val caCertInput = assetsManager.openOrThrow(caCertPath, "CA certificate")
+
+            val clientCertPath = getString(KEY_CLIENT_CERT_PATH)
+            val clientKeyPath = getString(KEY_CLIENT_KEY_PATH)
+            val clientKeyPassword = getString(KEY_CLIENT_KEY_PASSWORD)
+
+            // mTLS validation: clientCert and clientKey must both be present or both null
+            if ((clientCertPath == null) != (clientKeyPath == null)) {
+                logger.w(TAG, "Client certificate and private key must both be set for mTLS. Ignoring mTLS fields.")
+            }
+
+            val clientCertInput = clientCertPath?.let { assetsManager.openOrThrow(it, "client certificate") }
+            val clientKeyInput = clientKeyPath?.let { assetsManager.openOrThrow(it, "client private key") }
+
+            TlsConfig(
+                caCertInput = caCertInput,
+                clientCertInput = clientCertInput,
+                clientKeyInput = clientKeyInput,
+                clientKeyPassword = clientKeyPassword,
+            )
+        } catch (e: IOException) {
+            logger.e(TAG, "Failed to load certificate asset ${e.message}", e)
+            return null
+        }
+    }
+
+    /**
+     * Tries to open a file from assets. Throws a clear error if the file is missing.
+     */
+    private fun AssetManager.openOrThrow(path: String, description: String): InputStream =
+        try {
+            open(path)
+        } catch (e: IOException) {
+            throw IOException("Unable to open $description at '$path' from assets.", e)
+        }
 
     private object Defaults {
         const val MQTT_BROKER_URL = "tcp://127.0.0.1:1883"
@@ -69,4 +135,8 @@ object MetadataUtils {
     private const val KEY_MAX_RECONNECT_DELAY = "maxReconnectDelay"
     private const val KEY_USERNAME = "username"
     private const val KEY_PASSWORD = "password"
+    private const val KEY_CA_CERT_PATH = "caCertPath"
+    private const val KEY_CLIENT_CERT_PATH = "clientCertPath"
+    private const val KEY_CLIENT_KEY_PATH = "clientKeyPath"
+    private const val KEY_CLIENT_KEY_PASSWORD = "clientKeyPassword"
 }

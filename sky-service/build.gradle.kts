@@ -49,6 +49,10 @@ dependencies {
 
     // Paho MQTT Client
     implementation(libs.paho.client)
+
+    // BCProv
+    implementation(libs.bcprov.jdk15to18)
+    implementation(libs.bcpkix.jdk15to18)
 }
 
 tasks.withType<Test>().configureEach {

@@ -30,6 +30,7 @@ import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.net.ssl.SSLSocketFactory
 
 /**
  * Implementation of the MQTT handler with Paho MQTT v5.
@@ -41,6 +42,7 @@ class MqttConnectionHandler(
     private val logger: Logger = Logger.Default(),
     private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
     private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
+    private val sslSocketFactory: SSLSocketFactory? = null,
 ) : MqttHandler {
 
     private lateinit var mqttClient: IMqttAsyncClient
@@ -86,7 +88,7 @@ class MqttConnectionHandler(
             config.username?.let { userName = it }
             config.password?.let { password = it.toByteArray() }
 
-            // TODO: Implement SSL/TLS support
+            sslSocketFactory?.let { socketFactory = it }
         }
 
         mqttClient.setCallback(object : MqttCallback {

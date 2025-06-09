@@ -30,6 +30,7 @@ package com.skyroute.core.mqtt
  * @property maxReconnectDelay The upper limit (in seconds) for the total delay before a reconnect attempt. Default is 21600 seconds (6 hours).
  * @property username Optional username for authenticating with the broker.
  * @property password Optional password for authenticating with the broker.
+ * @property tlsConfig Optional SSL/TLS configuration, support both TLS and mTLS.
  *
  * @constructor Creates a new instance of [MqttConfig] with the specified connection and reconnection parameters.
  *
@@ -37,7 +38,7 @@ package com.skyroute.core.mqtt
  */
 data class MqttConfig(
     val brokerUrl: String,
-    private val clientPrefix: String,
+    private val clientPrefix: String = "skyroute",
     val cleanStart: Boolean = true,
     val sessionExpiryInterval: Int? = null,
     val connectionTimeout: Int = 30,
@@ -48,6 +49,7 @@ data class MqttConfig(
     val maxReconnectDelay: Int = 21600,
     val username: String? = null,
     val password: String? = null,
+    val tlsConfig: TlsConfig? = null,
 ) {
 
     /**

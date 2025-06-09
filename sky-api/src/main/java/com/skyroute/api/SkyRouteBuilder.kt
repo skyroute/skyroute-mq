@@ -37,6 +37,18 @@ import java.util.concurrent.Executors
  *
  * @author Andre Suryana
  */
+// TODO: Make SkyRouteBuilder internal class!
+//  Expose it like this:
+//  val skyRoute = SkyRoute.newBuilder()
+//      .sendNoSubscriberEvent(true)
+//      .executorService(Executors.newSingleThreadExecutor())
+//      .payloadAdapter(GsonPayloadAdapter())
+//      .build()
+//  Additionally:
+//  We can remove the `MqttConfig` parameter in the `SkyRoute.init()` method.
+//  Basically, by default MQTT config will be retrieved from the service's metadata.
+//  When users need to specify custom configuration programmatically or in runtime,
+//  users should create custom `SkyRoute` instance via `SkyRoute.newBuilder()`
 class SkyRouteBuilder {
 
     /**
@@ -121,6 +133,9 @@ class SkyRouteBuilder {
         this.payloadAdapter = payloadAdapter
         return this
     }
+
+    // TODO: Encapsulate the `MqttConfig` and `TlsConfig` with setter in this builder class
+    //  Example: brokerUrl(url: String): SkyRouteBuilder { ... }
 
     /**
      * Build and return a fully configured [SkyRoute] instance.
