@@ -17,6 +17,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -32,6 +35,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+    }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
     }
 }
 
@@ -53,8 +62,4 @@ dependencies {
     // BCProv
     implementation(libs.bcprov.jdk15to18)
     implementation(libs.bcpkix.jdk15to18)
-}
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
 }
