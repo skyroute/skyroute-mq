@@ -44,3 +44,8 @@ android {
         }
     }
 }
+
+dependencies {
+
+    testImplementation(libs.junit.jupiter)
+}

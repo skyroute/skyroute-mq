@@ -15,6 +15,9 @@
  */
 package com.skyroute.core.mqtt
 
+import java.security.SecureRandom
+import kotlin.math.abs
+
 /**
  * Configuration for establishing an MQTT connection.
  *
@@ -59,8 +62,10 @@ data class MqttConfig(
      * @return A unique MQTT client ID string.
      */
     fun getClientId(): String {
-        val suffix = System.currentTimeMillis()
+        val random = SecureRandom()
+        val randomNum = abs(random.nextLong())
+
         val separator = if (clientPrefix.endsWith('-')) "" else "-"
-        return "$clientPrefix$separator$suffix"
+        return "$clientPrefix$separator$randomNum"
     }
 }

@@ -64,17 +64,16 @@ class MqttConnectionHandlerTest {
     @Mock
     private lateinit var persistence: MqttClientPersistence
 
-    @Mock
-    private lateinit var logger: Logger
-
     @Captor
     private lateinit var callbackCaptor: ArgumentCaptor<MqttCallback>
+
+    private val logger: Logger = Logger.Stdout()
 
     private lateinit var handler: MqttConnectionHandler
 
     @BeforeEach
     fun setUp() {
-        reset(mqttClient, clientFactory, persistenceFactory, logger)
+        reset(mqttClient, clientFactory, persistenceFactory)
 
         lenient().whenever(persistenceFactory.create()).thenReturn(persistence)
         lenient().whenever(clientFactory.create(any(), any(), any())).thenReturn(mqttClient)
