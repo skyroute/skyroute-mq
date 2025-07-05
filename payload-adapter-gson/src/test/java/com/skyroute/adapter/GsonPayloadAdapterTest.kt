@@ -19,8 +19,8 @@ import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.adapter.decode
 import com.skyroute.core.adapter.encode
 import com.skyroute.core.util.Logger
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
 /**
  * @author Andre Suryana

@@ -18,8 +18,9 @@ package com.skyroute.api.adapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.adapter.decode
 import com.skyroute.core.adapter.encode
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * @author Andre Suryana
@@ -76,15 +77,19 @@ class DefaultPayloadAdapterTest {
         assertEquals(original, decoded)
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `test unsupported encode type`() {
         val original = object {}
-        adapter.encode(original)
+        assertThrows<IllegalArgumentException> {
+            adapter.encode(original)
+        }
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `test unsupported decode type`() {
         val bytes = "Sky Route!".toByteArray()
-        adapter.decode<Any>(bytes)
+        assertThrows<IllegalArgumentException> {
+            adapter.decode<Any>(bytes)
+        }
     }
 }

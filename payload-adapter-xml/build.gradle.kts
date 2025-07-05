@@ -17,6 +17,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -34,6 +37,12 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
 }
 
 dependencies {
@@ -42,5 +51,5 @@ dependencies {
     implementation(libs.jackson)
     implementation(libs.jackson.module.kotlin)
 
-    testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter)
 }

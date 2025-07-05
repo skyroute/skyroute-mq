@@ -47,8 +47,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
+    testImplementation(libs.junit.jupiter)
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(project(":sky-api"))

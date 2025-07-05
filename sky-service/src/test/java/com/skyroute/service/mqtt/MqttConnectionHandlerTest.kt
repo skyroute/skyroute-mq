@@ -24,9 +24,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.MqttCallback
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence
+import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -63,17 +66,16 @@ class MqttConnectionHandlerTest {
     @Mock
     private lateinit var persistence: MqttClientPersistence
 
-    @Mock
-    private lateinit var logger: Logger
-
     @Captor
     private lateinit var callbackCaptor: ArgumentCaptor<MqttCallback>
+
+    private val logger: Logger = Logger.Stdout()
 
     private lateinit var handler: MqttConnectionHandler
 
     @BeforeEach
     fun setUp() {
-        reset(mqttClient, clientFactory, persistenceFactory, logger)
+        reset(mqttClient, clientFactory, persistenceFactory)
 
         lenient().whenever(persistenceFactory.create()).thenReturn(persistence)
         lenient().whenever(clientFactory.create(any(), any(), any())).thenReturn(mqttClient)
@@ -94,6 +96,43 @@ class MqttConnectionHandlerTest {
         verify(clientFactory).create(eq(config.brokerUrl), any(), eq(persistence))
         verify(mqttClient).setCallback(any())
         verify(mqttClient).connect(any())
+    }
+
+    @Test
+    fun `connect should generate random client ID`() {
+        val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
+        handler.connect(config)
+
+        assertNotNull(handler.getClientId())
+    }
+
+    @Test
+    fun `disconnect should delete client ID`() {
+        val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
+
+        handler.connect(config)
+        assertNotNull(handler.getClientId())
+
+        handler.disconnect()
+        assertNull(handler.getClientId())
+    }
+
+    @Test
+    fun `reconnect should generate new random client ID`() {
+        val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
+        handler.connect(config)
+
+        val clientId = handler.getClientId()
+        assertNotNull(clientId)
+
+        handler.disconnect()
+        handler.connect(config)
+
+        val newClientId = handler.getClientId()
+        assertNotNull(newClientId)
+
+        // Ensure that the new client ID is different from the old one
+        assertNotEquals(clientId, newClientId)
     }
 
     @Test
@@ -166,6 +205,23 @@ class MqttConnectionHandlerTest {
     }
 
     @Test
+    fun `publish should execute when connected`() {
+        val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
+        val spyHandler = spy(handler)
+        spyHandler.connect(config)
+
+        whenever(spyHandler.isConnected()).thenReturn(false)
+        spyHandler.publish("topic", "hello".toByteArray(), qos = 1, retain = false)
+
+        verify(mqttClient).setCallback(callbackCaptor.capture())
+
+        whenever(spyHandler.isConnected()).thenReturn(true)
+        callbackCaptor.value.connectComplete(false, config.brokerUrl)
+
+        verify(mqttClient).publish(eq("topic"), any())
+    }
+
+    @Test
     fun `onMessageArrival should invoke callback`() {
         val callbackCaptor = argumentCaptor<MqttCallback>()
         val payload = "test-msg".toByteArray()
@@ -185,6 +241,27 @@ class MqttConnectionHandlerTest {
         callbackCaptor.firstValue.messageArrived("topic", mockMessage)
 
         assertArrayEquals(payload, received)
+    }
+
+    @Test
+    fun `onDisconnect should invoke callback`() {
+        val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
+        handler.connect(config)
+
+        verify(mqttClient).setCallback(callbackCaptor.capture())
+
+        var receivedCode: Int? = null
+        var receivedReason: String? = null
+        handler.onDisconnect { code, reason ->
+            receivedCode = code
+            receivedReason = reason
+        }
+
+        val mockResponse = MqttDisconnectResponse(123, "test-reason", null, null)
+        callbackCaptor.value.disconnected(mockResponse)
+
+        assertTrue(receivedCode == 123)
+        assertTrue(receivedReason == "test-reason")
     }
 
     @Test
