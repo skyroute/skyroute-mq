@@ -64,7 +64,7 @@ class SkyRouteService : Service() {
         mqttHandler = MqttConnectionHandler(
             context = this,
             logger = logger,
-            socketFactory = DefaultMqttSocketFactory(),
+            mqttSocketFactory = DefaultMqttSocketFactory(),
         )
         mqttHandler.connect(config)
     }

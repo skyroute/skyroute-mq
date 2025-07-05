@@ -5,16 +5,11 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
-import java.io.InputStream
 
+/**
+ * @author Andre Suryana
+ */
 class MqttConfigTest {
-
-    private val mockTlsConfig = TlsConfig(
-        caCertInput = InputStream.nullInputStream(),
-        clientCertInput = null,
-        clientKeyInput = null,
-        clientKeyPassword = null
-    )
 
     @RepeatedTest(5)
     fun `getClientId should generate unique client IDs with default prefix`() {
@@ -49,7 +44,6 @@ class MqttConfigTest {
             maxReconnectDelay = 1000,
             username = "user",
             password = "pass",
-            tlsConfig = mockTlsConfig,
         )
 
         assertEquals("ssl://custom-broker:8883", config.brokerUrl)
