@@ -13,24 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.service.mqtt
+package com.skyroute.service.mqtt.socket
 
-import org.eclipse.paho.mqttv5.client.MqttClientPersistence
+import com.skyroute.core.mqtt.TlsConfig
+import javax.net.SocketFactory
 
 /**
- * Factory interface for creating MQTT persistence instance.
+ * Factory interface for creating [SocketFactory] instances
+ * using the provided [TlsConfig] for TLS or mutual TLS connections.
  *
- * This allows customization or substitution of persistence mechanism
- * used by the MQTT client, which is useful for testing or alternate storage backends.
+ * Allows custom or testable implementations.
  *
  * @author Andre Suryana
  */
-interface PersistenceFactory {
+interface MqttSocketFactory {
 
     /**
-     * Creates a new instance of [MqttClientPersistence] to be used by the MQTT client.
+     * Creates an [SocketFactory] based on the given [config].
      *
-     * @return a new [MqttClientPersistence] instance.
+     * @param config TLS/mTLS configuration including certs and keys.
+     * @return a configured [SocketFactory].
      */
-    fun create(): MqttClientPersistence
+    fun create(config: TlsConfig): SocketFactory
 }

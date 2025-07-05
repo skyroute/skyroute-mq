@@ -61,7 +61,7 @@ object MetadataUtils {
         maxReconnectDelay = getInt(KEY_MAX_RECONNECT_DELAY, Defaults.MQTT_MAX_RECONNECT_DELAY),
         username = getString(KEY_USERNAME),
         password = getString(KEY_PASSWORD),
-        tlsConfig = toTlsConfig(context),
+        tlsConfig = toTlsConfig(context) ?: TlsConfig.Disabled,
     )
 
     /**
@@ -74,26 +74,28 @@ object MetadataUtils {
         val assetsManager = context.applicationContext.assets
 
         return try {
-            val caCertInput = assetsManager.openOrThrow(caCertPath, "CA certificate")
+            val caInput = assetsManager.openOrThrow(caCertPath, "CA certificate")
 
             val clientCertPath = getString(KEY_CLIENT_CERT_PATH)
             val clientKeyPath = getString(KEY_CLIENT_KEY_PATH)
             val clientKeyPassword = getString(KEY_CLIENT_KEY_PASSWORD)
 
-            // mTLS validation: clientCert and clientKey must both be present or both null
-            if ((clientCertPath == null) != (clientKeyPath == null)) {
-                logger.w(TAG, "Client certificate and private key must both be set for mTLS. Ignoring mTLS fields.")
+            if (!clientCertPath.isNullOrEmpty() && !clientKeyPath.isNullOrEmpty()) {
+                val clientCertInput = assetsManager.openOrThrow(clientCertPath, "client certificate")
+                val clientKeyInput = assetsManager.openOrThrow(clientKeyPath, "client private key")
+
+                TlsConfig.MutualAuth(
+                    caInput,
+                    clientCertInput,
+                    clientKeyInput,
+                    clientKeyPassword,
+                )
+            } else {
+                if (clientCertPath != null || clientKeyPath != null) {
+                    logger.w(TAG, "Both client certificate and private key must be provided for mTLS. Falling back to ServerAuth.")
+                }
+                TlsConfig.ServerAuth(caInput)
             }
-
-            val clientCertInput = clientCertPath?.let { assetsManager.openOrThrow(it, "client certificate") }
-            val clientKeyInput = clientKeyPath?.let { assetsManager.openOrThrow(it, "client private key") }
-
-            TlsConfig(
-                caCertInput = caCertInput,
-                clientCertInput = clientCertInput,
-                clientKeyInput = clientKeyInput,
-                clientKeyPassword = clientKeyPassword,
-            )
         } catch (e: IOException) {
             logger.e(TAG, "Failed to load certificate asset ${e.message}", e)
             return null

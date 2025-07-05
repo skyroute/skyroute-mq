@@ -49,7 +49,7 @@ data class MqttConfig(
     val maxReconnectDelay: Int = 21600,
     val username: String? = null,
     val password: String? = null,
-    val tlsConfig: TlsConfig? = null,
+    val tlsConfig: TlsConfig = TlsConfig.Disabled,
 ) {
 
     /**

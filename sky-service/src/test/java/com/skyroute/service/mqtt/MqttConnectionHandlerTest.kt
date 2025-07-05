@@ -18,6 +18,8 @@ package com.skyroute.service.mqtt
 import android.content.Context
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.util.Logger
+import com.skyroute.service.mqtt.client.MqttClientFactory
+import com.skyroute.service.mqtt.persistence.PersistenceFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.MqttCallback

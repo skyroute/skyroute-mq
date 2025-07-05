@@ -21,6 +21,12 @@ import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.core.util.Logger
+import com.skyroute.service.mqtt.client.DefaultMqttClientFactory
+import com.skyroute.service.mqtt.client.MqttClientFactory
+import com.skyroute.service.mqtt.persistence.DefaultPersistenceFactory
+import com.skyroute.service.mqtt.persistence.PersistenceFactory
+import com.skyroute.service.mqtt.socket.DefaultMqttSocketFactory
+import com.skyroute.service.mqtt.socket.MqttSocketFactory
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.IMqttToken
 import org.eclipse.paho.mqttv5.client.MqttCallback
@@ -30,7 +36,6 @@ import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties
 import java.util.concurrent.CopyOnWriteArrayList
-import javax.net.ssl.SSLSocketFactory
 
 /**
  * Implementation of the MQTT handler with Paho MQTT v5.
@@ -42,7 +47,7 @@ class MqttConnectionHandler(
     private val logger: Logger = Logger.Default(),
     private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
     private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
-    private val sslSocketFactory: SSLSocketFactory? = null,
+    private val mqttSocketFactory: MqttSocketFactory = DefaultMqttSocketFactory(),
 ) : MqttHandler {
 
     private lateinit var mqttClient: IMqttAsyncClient
@@ -88,7 +93,7 @@ class MqttConnectionHandler(
             config.username?.let { userName = it }
             config.password?.let { password = it.toByteArray() }
 
-            sslSocketFactory?.let { socketFactory = it }
+            socketFactory = mqttSocketFactory.create(config.tlsConfig)
         }
 
         mqttClient.setCallback(object : MqttCallback {

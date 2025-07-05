@@ -24,8 +24,8 @@ import android.os.IBinder
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.util.Logger
-import com.skyroute.service.mqtt.DefaultMqttSocketFactory
 import com.skyroute.service.mqtt.MqttConnectionHandler
+import com.skyroute.service.mqtt.socket.DefaultMqttSocketFactory
 import com.skyroute.service.util.MetadataUtils
 import com.skyroute.service.util.MetadataUtils.toMqttConfig
 
@@ -64,13 +64,7 @@ class SkyRouteService : Service() {
         mqttHandler = MqttConnectionHandler(
             context = this,
             logger = logger,
-            sslSocketFactory = config.tlsConfig?.let {
-                logger.d(TAG, "TLS config detected, creating SSL socket factory...")
-                DefaultMqttSocketFactory().createSocketFactory(it)
-            } ?: run {
-                logger.d(TAG, "No TLS config, using plain socket.")
-                null
-            },
+            socketFactory = DefaultMqttSocketFactory(),
         )
         mqttHandler.connect(config)
     }

@@ -13,32 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.service.mqtt
+package com.skyroute.service.mqtt.client
 
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence
 
 /**
- * Factory interface for creating MQTT client instances.
- *
- * This abstraction allows the creation of custom or mock [IMqttAsyncClient] instances,
- * useful for testing and decoupling the client instantiation from the handler logic.
+ * Default implementation of [MqttClientFactory] that creates real
+ * [MqttAsyncClient] instances using provided configuration.
  *
  * @author Andre Suryana
  */
-interface MqttClientFactory {
+internal class DefaultMqttClientFactory : MqttClientFactory {
 
-    /**
-     * Creates a new [IMqttAsyncClient] instance configured with the given parameters.
-     *
-     * @param brokerUrl The MQTT broker URI.
-     * @param clientId The client ID to be used when connecting.
-     * @param persistence The persistence mechanism for the client session.
-     * @return a new [IMqttAsyncClient] instance.
-     */
-    fun create(
+    override fun create(
         brokerUrl: String,
         clientId: String,
         persistence: MqttClientPersistence,
-    ): IMqttAsyncClient
+    ): IMqttAsyncClient {
+        return MqttAsyncClient(brokerUrl, clientId, persistence)
+    }
 }

@@ -18,31 +18,55 @@ package com.skyroute.core.mqtt
 import java.io.InputStream
 
 /**
- * Configuration for enabling SSL/TLS or mutual TLS (mTLS) in MQTT connections.
+ * TLS configuration for MQTT connections.
  *
- * This data class provides input streams for the necessary certificates and private keys
- * required to establish a secure connection to an MQTT broker using TLS or mTLS.
+ * This sealed class represents the available transport layer security (TLS) configurations used
+ * to establish a secure connection with an MQTT broker.
  *
- * TLS is enabled when a CA certificate is provided. For mTLS, the client certificate and private key
- * must also be supplied.
+ * - [Disabled] disables TLS entirely.
+ * - [ServerAuth] enables one-way TLS using a CA certificate to authenticate the server.
+ * - [MutualAuth] enables mutual TLS (mTLS) where both the client and server are authenticated.
  *
- * @property caCertInput The input stream of the Certificate Authority (CA) certificate used to verify the server's certificate.
- * @property clientCertInput Optional input stream of the client's certificate for mutual TLS authentication.
- * @property clientKeyInput Optional input stream of the client's private key corresponding to the client certificate.
- * @property clientKeyPassword Optional password for the encrypted client private key, if applicable.
+ * All certificates and keys are expected to be provided as [InputStream]s. These streams must remain
+ * open while creating the MQTT connection but may be closed afterward.
+ *
+ * @see Disabled
+ * @see ServerAuth
+ * @see MutualAuth
  *
  * @author Andre Suryana
  */
-data class TlsConfig(
-    val caCertInput: InputStream,
-    val clientCertInput: InputStream? = null,
-    val clientKeyInput: InputStream? = null,
-    val clientKeyPassword: String? = null,
-) {
+sealed class TlsConfig {
+
     /**
-     * Checks whether mutual TLS (mTLS) is configured.
-     *
-     * @return `true` if both the client certificate and private key are provided, `false` otherwise.
+     * Disables TLS. Connections will be made in plaintext.
      */
-    fun isMutualTls(): Boolean = clientCertInput != null && clientKeyInput != null
+    data object Disabled : TlsConfig()
+
+    /**
+     * Enables TLS with server authentication using a CA certificate.
+     *
+     * This configuration verifies the MQTT broker's certificate using the provided CA certificate.
+     *
+     * @property caInput Input stream of the Certificate Authority (CA) certificate used to verify the server's identity.
+     */
+    data class ServerAuth(val caInput: InputStream) : TlsConfig()
+
+    /**
+     * Enables mutual TLS (mTLS) with both server and client authentication.
+     *
+     * This configuration verifies the server using a CA certificate and also presents a client certificate
+     * and private key to authenticate the client to the server.
+     *
+     * @property caInput Input stream of the Certificate Authority (CA) certificate used to verify the server's certificate.
+     * @property clientCertInput Input stream of the client's certificate for mutual TLS authentication.
+     * @property clientKeyInput Input stream of the client's private key corresponding to the client certificate.
+     * @property clientKeyPassword Optional password for the client private key, if it is encrypted.
+     */
+    data class MutualAuth(
+        val caInput: InputStream,
+        val clientCertInput: InputStream,
+        val clientKeyInput: InputStream,
+        val clientKeyPassword: String? = null,
+    ) : TlsConfig()
 }
