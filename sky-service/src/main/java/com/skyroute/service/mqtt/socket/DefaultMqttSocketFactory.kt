@@ -1,5 +1,6 @@
 package com.skyroute.service.mqtt.socket
 
+import android.annotation.SuppressLint
 import com.skyroute.core.mqtt.TlsConfig
 import org.bouncycastle.openssl.PEMEncryptedKeyPair
 import org.bouncycastle.openssl.PEMKeyPair
@@ -12,11 +13,14 @@ import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import javax.net.SocketFactory
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 /**
  * Default implementations of [MqttSocketFactory] that creates [SocketFactory] instances
@@ -38,18 +42,19 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
         return when (config) {
             is TlsConfig.Disabled -> SocketFactory.getDefault()
 
-            is TlsConfig.ServerAuth -> createSSLSocketFactory(config.caInput)
+            is TlsConfig.ServerAuth -> createSSLSocketFactory(config.caInput, config.skipVerify)
 
             is TlsConfig.MutualAuth -> createMutualSSLSocketFactory(
                 config.caInput,
                 config.clientCertInput,
                 config.clientKeyInput,
                 config.clientKeyPassword?.toCharArray() ?: CharArray(0),
+                config.skipVerify,
             )
         }
     }
 
-    private fun createSSLSocketFactory(caInput: InputStream): SSLSocketFactory {
+    private fun createSSLSocketFactory(caInput: InputStream, skipVerify: Boolean): SSLSocketFactory {
         val trustStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
             load(null)
             val cf = CertificateFactory.getInstance("X.509")
@@ -57,12 +62,8 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
             setCertificateEntry("ca", caCert)
         }
 
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
-            init(trustStore)
-        }
-
         return SSLContext.getInstance("TLS").apply {
-            init(null, tmf.trustManagers, SecureRandom())
+            init(null, getTrustManagers(trustStore, skipVerify), SecureRandom())
         }.socketFactory
     }
 
@@ -71,6 +72,7 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
         clientCertInput: InputStream,
         clientKeyInput: InputStream,
         clientKeyPassword: CharArray,
+        skipVerify: Boolean,
     ): SocketFactory {
         // Load CA
         val trustStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
@@ -89,17 +91,20 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
             setKeyEntry("client", key, clientKeyPassword, arrayOf(clientCert))
         }
 
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
-            init(trustStore)
-        }
-
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
             init(clientStore, clientKeyPassword)
         }
 
         return SSLContext.getInstance("TLS").apply {
-            init(kmf.keyManagers, tmf.trustManagers, SecureRandom())
+            init(kmf.keyManagers, getTrustManagers(trustStore, skipVerify), SecureRandom())
         }.socketFactory
+    }
+
+    private fun getTrustManagers(trustStore: KeyStore, skipVerify: Boolean): Array<TrustManager> {
+        return if (skipVerify) UNSAFE_TRUST_MANAGERS
+        else TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+            init(trustStore)
+        }.trustManagers
     }
 
     private fun loadPrivateKey(keyInput: InputStream, password: CharArray): PrivateKey {
@@ -125,5 +130,14 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
 
             else -> throw IllegalArgumentException("Unsupported private key format: ${pemObject?.javaClass?.name}")
         }
+    }
+
+    companion object {
+        @SuppressLint("CustomX509TrustManager")
+        private val UNSAFE_TRUST_MANAGERS = arrayOf<TrustManager>(object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        })
     }
 }

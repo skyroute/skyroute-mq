@@ -31,6 +31,11 @@ import java.io.InputStream
  */
 object MetadataUtils {
 
+    // TODO: Update config handling mechanism
+    //  1. Recreate into class namely `ConfigResolver(Bundle)` (class not object)
+    //  2. Resolve config by calling `ConfigResolver#resolve()` and return the `MqttConfig` object
+    //  3. `resolve` will throw an exception when config validation fails (e.g., incorrect brokerUrl scheme for SSL/TLS configuration)
+
     /**
      * Converts a [Bundle] to an [MqttConfig], which defines MQTT connection parameters.
      */
@@ -65,6 +70,7 @@ object MetadataUtils {
             val clientCertPath = getString(KEY_CLIENT_CERT_PATH)
             val clientKeyPath = getString(KEY_CLIENT_KEY_PATH)
             val clientKeyPassword = getString(KEY_CLIENT_KEY_PASSWORD)
+            val skipVerify = getBoolean(KEY_INSECURE_SKIP_VERIFY, false)
 
             if (!clientCertPath.isNullOrEmpty() && !clientKeyPath.isNullOrEmpty()) {
                 val clientCertInput = assetsManager.openOrThrow(clientCertPath, "client certificate")
@@ -75,9 +81,10 @@ object MetadataUtils {
                     clientCertInput,
                     clientKeyInput,
                     clientKeyPassword,
+                    skipVerify,
                 )
             } else {
-                TlsConfig.ServerAuth(caInput)
+                TlsConfig.ServerAuth(caInput, skipVerify)
             }
         } catch (e: IOException) {
             return null
@@ -123,4 +130,5 @@ object MetadataUtils {
     private const val KEY_CLIENT_CERT_PATH = "clientCertPath"
     private const val KEY_CLIENT_KEY_PATH = "clientKeyPath"
     private const val KEY_CLIENT_KEY_PASSWORD = "clientKeyPassword"
+    private const val KEY_INSECURE_SKIP_VERIFY = "insecureSkipVerify"
 }

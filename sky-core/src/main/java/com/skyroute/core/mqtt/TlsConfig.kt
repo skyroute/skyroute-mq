@@ -49,8 +49,13 @@ sealed class TlsConfig {
      * This configuration verifies the MQTT broker's certificate using the provided CA certificate.
      *
      * @property caInput Input stream of the Certificate Authority (CA) certificate used to verify the server's identity.
+     * @property skipVerify If true, skips verification of the server's certificate chain and hostname.
+     *                      This allows connections to servers with self-signed or untrusted certificates.
      */
-    data class ServerAuth(val caInput: InputStream) : TlsConfig()
+    data class ServerAuth(
+        val caInput: InputStream,
+        val skipVerify: Boolean = false,
+    ) : TlsConfig()
 
     /**
      * Enables mutual TLS (mTLS) with both server and client authentication.
@@ -62,11 +67,14 @@ sealed class TlsConfig {
      * @property clientCertInput Input stream of the client's certificate for mutual TLS authentication.
      * @property clientKeyInput Input stream of the client's private key corresponding to the client certificate.
      * @property clientKeyPassword Optional password for the client private key, if it is encrypted.
+     * @property skipVerify If true, skips verification of the server's certificate chain and hostname.
+     *                      This allows connections to servers with self-signed or untrusted certificates.
      */
     data class MutualAuth(
         val caInput: InputStream,
         val clientCertInput: InputStream,
         val clientKeyInput: InputStream,
         val clientKeyPassword: String? = null,
+        val skipVerify: Boolean = false,
     ) : TlsConfig()
 }
