@@ -20,7 +20,6 @@ import android.content.res.AssetManager
 import android.os.Bundle
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.TlsConfig
-import com.skyroute.core.util.Logger
 import java.io.IOException
 import java.io.InputStream
 
@@ -31,19 +30,6 @@ import java.io.InputStream
  * @author Andre Suryana
  */
 object MetadataUtils {
-
-    private const val TAG = "MetadataUtils"
-
-    private var logger: Logger = Logger.Default()
-
-    /**
-     * Replaces the default logger with a custom implementation.
-     *
-     * @param logger The custom [Logger] to be used by this utility.
-     */
-    fun setLogger(logger: Logger) {
-        this.logger = logger
-    }
 
     /**
      * Converts a [Bundle] to an [MqttConfig], which defines MQTT connection parameters.
@@ -91,13 +77,9 @@ object MetadataUtils {
                     clientKeyPassword,
                 )
             } else {
-                if (clientCertPath != null || clientKeyPath != null) {
-                    logger.w(TAG, "Both client certificate and private key must be provided for mTLS. Falling back to ServerAuth.")
-                }
                 TlsConfig.ServerAuth(caInput)
             }
         } catch (e: IOException) {
-            logger.e(TAG, "Failed to load certificate asset ${e.message}", e)
             return null
         }
     }

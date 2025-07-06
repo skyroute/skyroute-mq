@@ -44,10 +44,6 @@ class SkyRouteService : Service() {
     private lateinit var config: MqttConfig
     private lateinit var mqttHandler: MqttHandler
 
-    init {
-        MetadataUtils.setLogger(logger)
-    }
-
     /**
      * Initializes the MQTT connection using configuration parameters from the service metadata.
      */
