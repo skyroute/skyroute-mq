@@ -23,7 +23,6 @@ import android.content.ServiceConnection
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
@@ -32,6 +31,7 @@ import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.OnMessageArrival
+import com.skyroute.service.ServiceRegistry
 import com.skyroute.service.SkyRouteService
 import com.skyroute.service.SkyRouteService.SkyRouteBinder
 import java.lang.reflect.InvocationTargetException
@@ -68,6 +68,11 @@ class SkyRoute internal constructor(
         fun getDefault(): SkyRoute = instance ?: synchronized(this) {
             instance ?: SkyRoute().also { instance = it }
         }
+
+        /**
+         * Creates a new instance of [SkyRouteBuilder].
+         */
+        fun newBuilder(): SkyRouteBuilder = SkyRouteBuilder()
     }
 
     private val subscriptionsByTopic: MutableMap<String, CopyOnWriteArrayList<Subscription>> = ConcurrentHashMap()
@@ -77,12 +82,16 @@ class SkyRoute internal constructor(
     private val adapterCache: MutableMap<KClass<out PayloadAdapter>, PayloadAdapter> = ConcurrentHashMap()
 
     private var mqttHandler: MqttHandler? = null
-    private var config: MqttConfig? = null
     private var bound = false
+
+    private val executorService = builder.executorService
+    private val logger = builder.logger
+    private val payloadAdapter = builder.payloadAdapter
+    private var config: MqttConfig? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            Log.i(TAG, "SkyRoute service connected!")
+            logger.i(TAG, "SkyRoute service connected!")
 
             // Retrieve the handler via binder
             if (binder == null || binder !is SkyRouteBinder) {
@@ -94,7 +103,7 @@ class SkyRoute internal constructor(
 
             // Load the config from builder, this will ignore the defined config in manifest
             config?.let {
-                Log.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
+                logger.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
                 mqttHandler?.connect(it)
             }
 
@@ -108,7 +117,7 @@ class SkyRoute internal constructor(
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            Log.w(TAG, "SkyRoute service disconnected!")
+            logger.w(TAG, "SkyRoute service disconnected!")
             mqttHandler = null
             bound = false
         }
@@ -133,9 +142,10 @@ class SkyRoute internal constructor(
      *
      * @param context The application context to bind the service.
      */
-    fun init(context: Context, config: MqttConfig? = null) {
-        Log.i(TAG, "SkyRoute init...")
-        this.config = config
+    fun init(context: Context) {
+        logger.i(TAG, "SkyRoute init...")
+        this.config = builder.config
+        ServiceRegistry.initLogger(builder.logger)
 
         context.applicationContext.run { // Using application context to avoid memory leaks
             val intent = Intent(this, SkyRouteService::class.java)
@@ -152,7 +162,7 @@ class SkyRoute internal constructor(
         if (bound && mqttHandler?.isConnected() == true) {
             internalRegister(subscriber)
         } else {
-            Log.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
+            logger.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
             synchronized(pendingRegistrations) {
                 pendingRegistrations.add(subscriber)
             }
@@ -167,10 +177,10 @@ class SkyRoute internal constructor(
     private fun internalRegister(subscriber: Any) {
         val subscriberClass = subscriber::class.java
         val methods = subscriberClass.declaredMethods.filter { it.getAnnotation(Subscribe::class.java) != null }
-        Log.d(TAG, "internalRegister: Registering ${methods.size} methods for subscriber: ${subscriberClass.name}")
+        logger.d(TAG, "internalRegister: Registering ${methods.size} methods for subscriber: ${subscriberClass.name}")
 
         if (methods.isEmpty()) {
-            Log.w(
+            logger.w(
                 TAG,
                 "No methods with @Subscribe annotation were found in class ${subscriberClass.name}. " +
                     "Ensure you have at least one method annotated with @Subscribe(topic = ...) " +
@@ -225,9 +235,10 @@ class SkyRoute internal constructor(
         val subscriber = subscription.subscriber
 
         // Use the globally configured PayloadAdapter by default
-        var adapter = builder.payloadAdapter
+        var adapter = payloadAdapter
 
         // If a custom adapter is defined, try to retrieve it from the cache or instantiate it
+        // FIXME: Introduce into separate method
         subscription.subscriberMethod.adapterClass.let { adapterClass ->
             if (adapterClass != DefaultPayloadAdapter::class) {
                 adapter = adapterCache.getOrPut(adapterClass) {
@@ -236,6 +247,7 @@ class SkyRoute internal constructor(
             }
         }
 
+        // FIXME: Introduce into separate method
         val invoke = lambda@{
             try {
                 val params = method.parameterTypes
@@ -257,15 +269,16 @@ class SkyRoute internal constructor(
 
                 method.invoke(subscriber, *args)
             } catch (e: InvocationTargetException) {
-                Log.e(TAG, "Method invocation failed", e)
+                logger.e(TAG, "Method invocation failed", e)
             } catch (e: Exception) {
-                Log.e(TAG, "Unexpected error during method invocation", e)
+                logger.e(TAG, "Unexpected error during method invocation", e)
             }
             // TODO: Should determine to handle exception or not,
             //  we can rethrow it if we want (maybe configured by flag in builder)
             //  or just log it and continue.
         }
 
+        // FIXME: Introduce into separate method
         when (threadMode) {
             ThreadMode.MAIN -> {
                 if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -277,14 +290,14 @@ class SkyRoute internal constructor(
 
             ThreadMode.BACKGROUND -> {
                 if (Looper.myLooper() == Looper.getMainLooper()) {
-                    builder.executorService.execute { invoke() }
+                    executorService.execute { invoke() }
                 } else {
                     invoke()
                 }
             }
 
             ThreadMode.ASYNC -> {
-                builder.executorService.execute { invoke() }
+                executorService.execute { invoke() }
             }
         }
     }
@@ -306,7 +319,7 @@ class SkyRoute internal constructor(
      */
     fun unregister(subscriber: Any) {
         if (!isRegistered(subscriber)) {
-            Log.w(TAG, "Subscriber $subscriber is not registered.")
+            logger.w(TAG, "Subscriber $subscriber is not registered.")
             return
         }
 
@@ -317,7 +330,7 @@ class SkyRoute internal constructor(
                 if (subscription.subscriber == subscriber) {
                     subscription.active = false
                     mqttHandler?.unsubscribe(topic)
-                    Log.d(TAG, "Marked subscription as inactive: ${subscription.subscriberMethod.description}")
+                    logger.d(TAG, "Marked subscription as inactive: ${subscription.subscriberMethod.description}")
                 }
             }
         }
@@ -359,6 +372,7 @@ class SkyRoute internal constructor(
      * @param retain Whether the message should be retained after delivery.
      * @throws IllegalArgumentException if value of QoS is not 0, 1, or 2.
      */
+    @Throws(IllegalArgumentException::class)
     fun publish(topic: String, message: Any, qos: Int, retain: Boolean) {
         publish(topic, message, qos, retain, null)
     }
@@ -376,7 +390,7 @@ class SkyRoute internal constructor(
     @Throws(IllegalArgumentException::class)
     fun publish(topic: String, message: Any, qos: Int, retain: Boolean, ttl: Long? = null) {
         if (!bound) {
-            Log.w(TAG, "publish: Service not yet bound! Message will be queued")
+            logger.w(TAG, "publish: Service not yet bound! Message will be queued")
             return
         }
         if (qos < 0 || qos > 2) throw IllegalArgumentException("QoS must be between 0 and 2")

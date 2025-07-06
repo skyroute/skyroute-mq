@@ -23,10 +23,8 @@ import android.os.Binder
 import android.os.IBinder
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
-import com.skyroute.core.util.Logger
 import com.skyroute.service.mqtt.MqttConnectionHandler
 import com.skyroute.service.mqtt.socket.DefaultMqttSocketFactory
-import com.skyroute.service.util.MetadataUtils
 import com.skyroute.service.util.MetadataUtils.toMqttConfig
 
 /**
@@ -39,7 +37,7 @@ import com.skyroute.service.util.MetadataUtils.toMqttConfig
 class SkyRouteService : Service() {
 
     private val binder = SkyRouteBinder()
-    private val logger = Logger.Default()
+    private val logger = ServiceRegistry.logger
 
     private lateinit var config: MqttConfig
     private lateinit var mqttHandler: MqttHandler

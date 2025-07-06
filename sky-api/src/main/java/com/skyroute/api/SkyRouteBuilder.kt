@@ -17,6 +17,9 @@ package com.skyroute.api
 
 import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
+import com.skyroute.core.mqtt.MqttConfig
+import com.skyroute.core.mqtt.TlsConfig
+import com.skyroute.core.util.Logger
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -26,131 +29,156 @@ import java.util.concurrent.Executors
  * This builder provides a fluent API to customize core behaviour of the SkyRouteMQ messaging system,
  * such as event handling, task execution, and payload serialization.
  *
- * Example usage:
- * ```
- * val skyRoute = SkyRouteBuilder()
- *     .sendNoSubscriberEvent(true)
- *     .sendInvocationFailedEvent(true)
- *     .executorService(Executors.newSingleThreadExecutor())
- *     .payloadAdapter(GsonPayloadAdapter())
- * ```
- *
  * @author Andre Suryana
  */
-// TODO: Make SkyRouteBuilder internal class!
-//  Expose it like this:
-//  val skyRoute = SkyRoute.newBuilder()
-//      .sendNoSubscriberEvent(true)
-//      .executorService(Executors.newSingleThreadExecutor())
-//      .payloadAdapter(GsonPayloadAdapter())
-//      .build()
-//  Additionally:
-//  We can remove the `MqttConfig` parameter in the `SkyRoute.init()` method.
-//  Basically, by default MQTT config will be retrieved from the service's metadata.
-//  When users need to specify custom configuration programmatically or in runtime,
-//  users should create custom `SkyRoute` instance via `SkyRoute.newBuilder()`
 class SkyRouteBuilder {
 
-    /**
-     * Whether SkyRoute should emit an event when a message arrives for which no subscriber exists.
-     *
-     * If `true`, the system can emit an event or throw an exception to indicate that no subscriber handled the message.
-     * Default is `true`.
-     *
-     * TODO: RFU, when topic received but there's no subscriber, we should throw exception
-     */
-    var sendNoSubscriberEvent = true
+    // TODO: RFU, when topic received but there's no subscriber, we should throw exception
+    internal var sendNoSubscriberEvent: Boolean = true
+        private set
+
+    // TODO: RFU, throw exception for method invocation failed
+    internal var sendInvocationFailedEvent: Boolean = true
+        private set
+
+    internal var executorService: ExecutorService = Executors.newCachedThreadPool()
+        private set
+
+    internal var logger: Logger = Logger.Default()
+        private set
+
+    internal var payloadAdapter: PayloadAdapter = DefaultPayloadAdapter()
+        private set
+
+    internal var config: MqttConfig = MqttConfig()
         private set
 
     /**
-     * Whether SkyRoute should emit an event or throw an exception when a subscriber method fails to execute.
-     *
-     * If `true`, the failure will be propagated through a custom mechanism or logged.
-     * Default is `true`.
-     *
-     * TODO: RFU, throw exception for method invocation failed
+     * Whether to emit an event when a message has no matching subscriber.
      */
-    var sendInvocationFailedEvent = true
-        private set
-
-    /**
-     * The [ExecutorService] used for dispatching message callbacks to subscribers.
-     *
-     * By default, this uses a cached thread pool, but you can customize it to match your desired concurrency model.
-     */
-    var executorService = DEFAULT_EXECUTOR_SERVICE
-        private set
-
-    /**
-     * The [PayloadAdapter] used for encoding and decoding message payloads.
-     *
-     * By default, it uses [DefaultPayloadAdapter], which supports basic types such as String, Int, Boolean, etc.
-     * You can provide a custom adapter such as Gson, Moshi, or XML-based adapters.
-     */
-    var payloadAdapter: PayloadAdapter = DefaultPayloadAdapter()
-        private set
-
-    /**
-     * Set whether to emit an event when no subscriber is found for a received message.
-     *
-     * @param sendNoSubscriberEvent Whether to enable this feature.
-     * @return The current builder instance for chaining.
-     */
-    fun sendNoSubscriberEvent(sendNoSubscriberEvent: Boolean): SkyRouteBuilder {
+    fun sendNoSubscriberEvent(sendNoSubscriberEvent: Boolean) = apply {
         this.sendNoSubscriberEvent = sendNoSubscriberEvent
-        return this
     }
 
     /**
-     * Set whether to emit an event or exception when a subscriber method invocation fails.
-     *
-     * @param sendInvocationFailedEvent Whether to enable this feature.
-     * @return The current builder instance for chaining.
+     * Whether to emit an event when a subscriber method throws an error.
      */
-    fun sendInvocationFailedEvent(sendInvocationFailedEvent: Boolean): SkyRouteBuilder {
+    fun sendInvocationFailedEvent(sendInvocationFailedEvent: Boolean) = apply {
         this.sendInvocationFailedEvent = sendInvocationFailedEvent
-        return this
     }
 
     /**
-     * Set a custom [ExecutorService] for subscriber method execution.
-     *
-     * @param executorService The executor service to use.
-     * @return The current builder instance for chaining.
+     * Set a custom executor for the subscriber's method execution.
      */
-    fun executorService(executorService: ExecutorService): SkyRouteBuilder {
+    fun executorService(executorService: ExecutorService) = apply {
         this.executorService = executorService
-        return this
     }
 
     /**
-     * Set a custom [PayloadAdapter] for message serialization and deserialization.
-     *
-     * @param payloadAdapter The payload adapter to use.
-     * @return The current builder instance for chaining.
+     * Sets a custom logger for all SkyRoute operations.
      */
-    fun payloadAdapter(payloadAdapter: PayloadAdapter): SkyRouteBuilder {
-        this.payloadAdapter = payloadAdapter
-        return this
+    fun logger(logger: Logger) = apply {
+        this.logger = logger
     }
 
-    // TODO: Encapsulate the `MqttConfig` and `TlsConfig` with setter in this builder class
-    //  Example: brokerUrl(url: String): SkyRouteBuilder { ... }
+    /**
+     * Sets the payload adapter for serializing/deserializing messages.
+     */
+    fun payloadAdapter(payloadAdapter: PayloadAdapter) = apply {
+        this.payloadAdapter = payloadAdapter
+    }
 
     /**
-     * Build and return a fully configured [SkyRoute] instance.
+     * Sets the MQTT broker URL, including host and port.
      *
-     * @return The constructed [SkyRoute] object.
+     * Example: `"tcp://broker.example.com:1883"`
+     */
+    fun brokerUrl(brokerUrl: String) = apply {
+        this.config.brokerUrl = brokerUrl
+    }
+
+    /**
+     * Sets the prefix for generating a unique MQTT client ID.
+     */
+    fun clientPrefix(clientPrefix: String) = apply {
+        this.config.clientPrefix = clientPrefix
+    }
+
+    /**
+     * Whether to use a clean session on connect.
+     */
+    fun cleanStart(cleanStart: Boolean) = apply {
+        this.config.cleanStart = cleanStart
+    }
+
+    /**
+     * Sets how long (in seconds) the broker should persist the session after disconnect.
+     */
+    fun sessionExpiryInterval(sessionExpiryInterval: Int?) = apply {
+        this.config.sessionExpiryInterval = sessionExpiryInterval
+    }
+
+    /**
+     * Sets the connection timeout in seconds.
+     */
+    fun connectionTimeout(connectionTimeout: Int) = apply {
+        this.config.connectionTimeout = connectionTimeout
+    }
+
+    /**
+     * Sets the keep-alive interval in seconds.
+     */
+    fun keepAliveInterval(keepAliveInterval: Int) = apply {
+        this.config.keepAliveInterval = keepAliveInterval
+    }
+
+    /**
+     * Enables or disables automatic reconnect.
+     */
+    fun automaticReconnect(automaticReconnect: Boolean) = apply {
+        this.config.automaticReconnect = automaticReconnect
+    }
+
+    /**
+     * Sets the minimum and maximum delay (in seconds) between reconnect attempts.
+     *
+     * The client starts with [minDelay] and gradually increases the delay up to [maxDelay]
+     * when reconnecting after a connection loss.
+     */
+    fun automaticReconnectDelay(minDelay: Int, maxDelay: Int) = apply {
+        this.config.automaticReconnectMinDelay = minDelay
+        this.config.automaticReconnectMaxDelay = maxDelay
+    }
+
+    /**
+     * Sets the maximum total delay (in seconds) allowed between disconnection and the next reconnect attempt.
+     *
+     * This acts as an upper limit to prevent the reconnect mechanism from backing off indefinitely.
+     * If reached, reconnect attempts will be made no later than this duration, even with backoff applied.
+     */
+    fun maxReconnectDelay(maxReconnectDelay: Int) = apply {
+        this.config.maxReconnectDelay = maxReconnectDelay
+    }
+
+    /**
+     * Sets the MQTT username and password for broker authentication.
+     */
+    fun credentials(username: String, password: String) = apply {
+        this.config.username = username
+        this.config.password = password
+    }
+
+    /**
+     * Sets the TLS configuration (e.g., for TLS or mTLS)
+     */
+    fun tlsConfig(tlsConfig: TlsConfig) = apply {
+        this.config.tlsConfig = tlsConfig
+    }
+
+    /**
+     * Builds and returns a configured [SkyRoute] instance.
      */
     fun build(): SkyRoute {
         return SkyRoute(this)
-    }
-
-    companion object {
-        /**
-         * Default executor service used if none is specified.
-         * Uses a cached thread pool which creates new threads as needed and reuses previously constructed threads.
-         */
-        val DEFAULT_EXECUTOR_SERVICE: ExecutorService = Executors.newCachedThreadPool()
     }
 }

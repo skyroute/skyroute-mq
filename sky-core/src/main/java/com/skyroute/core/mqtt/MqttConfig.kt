@@ -25,6 +25,7 @@ import kotlin.math.abs
  * @property clientPrefix The client prefix used to generate unique MQTT client identifier.
  * @property cleanStart Whether to use a clean session. When true, any previous session will be discarded. Otherwise, resume the previous session
  * if one exists and keep it for [sessionExpiryInterval] seconds when [sessionExpiryInterval] > 0.
+ * @property sessionExpiryInterval The maximum time (in seconds) that the broker will maintain the session for once the client disconnects.
  * @property connectionTimeout The maximum time (in seconds) to wait when establishing a connection before timing out. Default is 30 seconds.
  * @property keepAliveInterval The interval (in seconds) between PING messages sent to the broker to keep connection alive. Default is 60 seconds.
  * @property automaticReconnect Whether the client should automatically attempt to reconnect if the connection is lost. Default is true.
@@ -40,19 +41,19 @@ import kotlin.math.abs
  * @author Andre Suryana
  */
 data class MqttConfig(
-    val brokerUrl: String,
-    private val clientPrefix: String = "skyroute",
-    val cleanStart: Boolean = true,
-    val sessionExpiryInterval: Int? = null,
-    val connectionTimeout: Int = 30,
-    val keepAliveInterval: Int = 60,
-    val automaticReconnect: Boolean = true,
-    val automaticReconnectMinDelay: Int = 1,
-    val automaticReconnectMaxDelay: Int = 120,
-    val maxReconnectDelay: Int = 21600,
-    val username: String? = null,
-    val password: String? = null,
-    val tlsConfig: TlsConfig = TlsConfig.Disabled,
+    var brokerUrl: String? = null,
+    var clientPrefix: String = "skyroute",
+    var cleanStart: Boolean = true,
+    var sessionExpiryInterval: Int? = null,
+    var connectionTimeout: Int = 30,
+    var keepAliveInterval: Int = 60,
+    var automaticReconnect: Boolean = true,
+    var automaticReconnectMinDelay: Int = 1,
+    var automaticReconnectMaxDelay: Int = 120,
+    var maxReconnectDelay: Int = 21600,
+    var username: String? = null,
+    var password: String? = null,
+    var tlsConfig: TlsConfig = TlsConfig.Disabled,
 ) {
 
     /**

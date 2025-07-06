@@ -66,7 +66,7 @@ class MqttConnectionHandler(
 
         // Generate client ID for the session
         this.mqttClient = clientFactory.create(
-            config.brokerUrl,
+            config.brokerUrl ?: throw IllegalArgumentException("MQTT broker URL is required"),
             config.getClientId().run {
                 clientId = this
                 this
@@ -121,7 +121,10 @@ class MqttConnectionHandler(
                 val message = token.message?.toString() ?: "No message"
                 val isComplete = token.isComplete
 
-                logger.d(TAG, "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete")
+                logger.d(
+                    TAG,
+                    "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete"
+                )
             }
 
             override fun connectComplete(reconnect: Boolean, serverURI: String?) {
@@ -133,7 +136,10 @@ class MqttConnectionHandler(
             }
 
             override fun authPacketArrived(reasonCode: Int, properties: MqttProperties?) {
-                logger.d(TAG, "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties")
+                logger.d(
+                    TAG,
+                    "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties"
+                )
             }
         })
 
@@ -181,14 +187,25 @@ class MqttConnectionHandler(
         mqttClient.unsubscribe(topic)
     }
 
-    override fun publish(topic: String, message: ByteArray, qos: Int, retain: Boolean, ttlInSeconds: Long?) {
+    override fun publish(
+        topic: String,
+        message: ByteArray,
+        qos: Int,
+        retain: Boolean,
+        ttlInSeconds: Long?
+    ) {
         if (!isConnected()) {
             logger.w(TAG, "MQTT client not connected. Request queued.")
             pendingRequests.add { publish(topic, message, qos, retain) }
             return
         }
 
-        logger.d(TAG, "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${String(message)}'")
+        logger.d(
+            TAG,
+            "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${
+                String(message)
+            }'"
+        )
         val msg = MqttMessage(message).apply {
             this.qos = qos
             this.isRetained = retain
