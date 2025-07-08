@@ -15,20 +15,20 @@
  */
 package com.skyroute.core.mqtt
 
-import java.io.InputStream
+import android.os.Parcelable
+import com.skyroute.core.mqtt.TlsConfig.Disabled
+import com.skyroute.core.mqtt.TlsConfig.MutualAuth
+import com.skyroute.core.mqtt.TlsConfig.ServerAuth
+import kotlinx.parcelize.Parcelize
 
 /**
- * TLS configuration for MQTT connections.
+ * TLS configuration for securing MQTT connections.
  *
- * This sealed class represents the available transport layer security (TLS) configurations used
- * to establish a secure connection with an MQTT broker.
+ * This sealed class defines different modes of TLS usage:
  *
- * - [Disabled] disables TLS entirely.
- * - [ServerAuth] enables one-way TLS using a CA certificate to authenticate the server.
- * - [MutualAuth] enables mutual TLS (mTLS) where both the client and server are authenticated.
- *
- * All certificates and keys are expected to be provided as [InputStream]s. These streams must remain
- * open while creating the MQTT connection but may be closed afterward.
+ * - [Disabled]: No TLS; connection is made over plaintext.
+ * - [ServerAuth]: One-way TLS using a CA certificate to verify the server.
+ * - [MutualAuth]: Mutual TLS (mTLS), where both client and server authenticate each other using certificates.
  *
  * @see Disabled
  * @see ServerAuth
@@ -36,7 +36,8 @@ import java.io.InputStream
  *
  * @author Andre Suryana
  */
-sealed class TlsConfig {
+@Parcelize
+sealed class TlsConfig : Parcelable {
 
     /**
      * Disables TLS. Connections will be made in plaintext.
@@ -48,12 +49,12 @@ sealed class TlsConfig {
      *
      * This configuration verifies the MQTT broker's certificate using the provided CA certificate.
      *
-     * @property caInput Input stream of the Certificate Authority (CA) certificate used to verify the server's identity.
+     * @property caCertPath Input stream of the Certificate Authority (CA) certificate used to verify the server's identity.
      * @property skipVerify If true, skips verification of the server's certificate chain and hostname.
      *                      This allows connections to servers with self-signed or untrusted certificates.
      */
     data class ServerAuth(
-        val caInput: InputStream,
+        val caCertPath: String,
         val skipVerify: Boolean = false,
     ) : TlsConfig()
 
@@ -63,18 +64,35 @@ sealed class TlsConfig {
      * This configuration verifies the server using a CA certificate and also presents a client certificate
      * and private key to authenticate the client to the server.
      *
-     * @property caInput Input stream of the Certificate Authority (CA) certificate used to verify the server's certificate.
-     * @property clientCertInput Input stream of the client's certificate for mutual TLS authentication.
-     * @property clientKeyInput Input stream of the client's private key corresponding to the client certificate.
+     * @property caCertPath Input stream of the Certificate Authority (CA) certificate used to verify the server's certificate.
+     * @property clientCertPath Input stream of the client's certificate for mutual TLS authentication.
+     * @property clientKeyPath Input stream of the client's private key corresponding to the client certificate.
      * @property clientKeyPassword Optional password for the client private key, if it is encrypted.
      * @property skipVerify If true, skips verification of the server's certificate chain and hostname.
      *                      This allows connections to servers with self-signed or untrusted certificates.
      */
     data class MutualAuth(
-        val caInput: InputStream,
-        val clientCertInput: InputStream,
-        val clientKeyInput: InputStream,
+        val caCertPath: String,
+        val clientCertPath: String,
+        val clientKeyPath: String,
         val clientKeyPassword: String? = null,
         val skipVerify: Boolean = false,
     ) : TlsConfig()
+
+    fun isSameConfig(other: TlsConfig?): Boolean {
+        if (other == null) return false
+        if (this === other) return true
+        return when {
+            this is Disabled && other is Disabled -> true
+            this is ServerAuth && other is ServerAuth -> this.caCertPath == other.caCertPath && this.skipVerify == other.skipVerify
+            this is MutualAuth && other is MutualAuth ->
+                this.caCertPath == other.caCertPath &&
+                    this.clientCertPath == other.clientCertPath &&
+                    this.clientKeyPath == other.clientKeyPath &&
+                    this.clientKeyPassword == other.clientKeyPassword &&
+                    this.skipVerify == other.skipVerify
+
+            else -> false
+        }
+    }
 }

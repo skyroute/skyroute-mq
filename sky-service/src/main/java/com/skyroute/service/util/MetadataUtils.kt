@@ -15,13 +15,10 @@
  */
 package com.skyroute.service.util
 
-import android.content.Context
-import android.content.res.AssetManager
 import android.os.Bundle
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.TlsConfig
 import java.io.IOException
-import java.io.InputStream
 
 /**
  * Utility methods for extracting configuration objects from [Bundle] metadata,
@@ -39,7 +36,7 @@ object MetadataUtils {
     /**
      * Converts a [Bundle] to an [MqttConfig], which defines MQTT connection parameters.
      */
-    fun Bundle.toMqttConfig(context: Context) = MqttConfig(
+    fun Bundle.toMqttConfig() = MqttConfig(
         brokerUrl = getString(KEY_BROKER_URL) ?: Defaults.MQTT_BROKER_URL,
         clientPrefix = getString(KEY_CLIENT_PREFIX) ?: Defaults.MQTT_CLIENT_PREFIX,
         cleanStart = getBoolean(KEY_CLEAN_START, Defaults.MQTT_CLEAN_START),
@@ -52,54 +49,37 @@ object MetadataUtils {
         maxReconnectDelay = getInt(KEY_MAX_RECONNECT_DELAY, Defaults.MQTT_MAX_RECONNECT_DELAY),
         username = getString(KEY_USERNAME),
         password = getString(KEY_PASSWORD),
-        tlsConfig = toTlsConfig(context) ?: TlsConfig.Disabled,
+        tlsConfig = toTlsConfig() ?: TlsConfig.Disabled,
     )
 
     /**
      * Converts a [Bundle] to a [TlsConfig].
      */
-    private fun Bundle.toTlsConfig(context: Context): TlsConfig? {
+    private fun Bundle.toTlsConfig(): TlsConfig? {
         val caCertPath = getString(KEY_CA_CERT_PATH)
         if (caCertPath.isNullOrEmpty()) return null
 
-        val assetsManager = context.applicationContext.assets
-
         return try {
-            val caInput = assetsManager.openOrThrow(caCertPath, "CA certificate")
-
             val clientCertPath = getString(KEY_CLIENT_CERT_PATH)
             val clientKeyPath = getString(KEY_CLIENT_KEY_PATH)
             val clientKeyPassword = getString(KEY_CLIENT_KEY_PASSWORD)
             val skipVerify = getBoolean(KEY_INSECURE_SKIP_VERIFY, false)
 
             if (!clientCertPath.isNullOrEmpty() && !clientKeyPath.isNullOrEmpty()) {
-                val clientCertInput = assetsManager.openOrThrow(clientCertPath, "client certificate")
-                val clientKeyInput = assetsManager.openOrThrow(clientKeyPath, "client private key")
-
                 TlsConfig.MutualAuth(
-                    caInput,
-                    clientCertInput,
-                    clientKeyInput,
+                    caCertPath,
+                    clientCertPath,
+                    clientKeyPath,
                     clientKeyPassword,
                     skipVerify,
                 )
             } else {
-                TlsConfig.ServerAuth(caInput, skipVerify)
+                TlsConfig.ServerAuth(caCertPath, skipVerify)
             }
         } catch (e: IOException) {
             return null
         }
     }
-
-    /**
-     * Tries to open a file from assets. Throws a clear error if the file is missing.
-     */
-    private fun AssetManager.openOrThrow(path: String, description: String): InputStream =
-        try {
-            open(path)
-        } catch (e: IOException) {
-            throw IOException("Unable to open $description at '$path' from assets.", e)
-        }
 
     private object Defaults {
         const val MQTT_BROKER_URL = "tcp://127.0.0.1:1883"

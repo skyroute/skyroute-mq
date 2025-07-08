@@ -15,6 +15,8 @@
  */
 package com.skyroute.core.mqtt
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import java.security.SecureRandom
 import kotlin.math.abs
 
@@ -40,6 +42,7 @@ import kotlin.math.abs
  *
  * @author Andre Suryana
  */
+@Parcelize
 data class MqttConfig(
     var brokerUrl: String? = null,
     var clientPrefix: String = "skyroute",
@@ -54,7 +57,7 @@ data class MqttConfig(
     var username: String? = null,
     var password: String? = null,
     var tlsConfig: TlsConfig = TlsConfig.Disabled,
-) {
+) : Parcelable {
 
     /**
      * Generates a unique client identifier for the MQTT connection based on the [clientPrefix]
@@ -68,5 +71,23 @@ data class MqttConfig(
 
         val separator = if (clientPrefix.endsWith('-')) "" else "-"
         return "$clientPrefix$separator$randomNum"
+    }
+
+    fun isSameConfig(other: MqttConfig?): Boolean {
+        if (other == null) return false
+        if (this === other) return true
+        return brokerUrl == other.brokerUrl &&
+            clientPrefix == other.clientPrefix &&
+            cleanStart == other.cleanStart &&
+            sessionExpiryInterval == other.sessionExpiryInterval &&
+            connectionTimeout == other.connectionTimeout &&
+            keepAliveInterval == other.keepAliveInterval &&
+            automaticReconnect == other.automaticReconnect &&
+            automaticReconnectMinDelay == other.automaticReconnectMinDelay &&
+            automaticReconnectMaxDelay == other.automaticReconnectMaxDelay &&
+            maxReconnectDelay == other.maxReconnectDelay &&
+            username == other.username &&
+            password == other.password &&
+            tlsConfig.isSameConfig(other.tlsConfig)
     }
 }

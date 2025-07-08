@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.fail
 import org.mockito.ArgumentCaptor
 import org.mockito.Captor
 import org.mockito.Mock
@@ -93,9 +94,11 @@ class MqttConnectionHandlerTest {
         val config = MqttConfig("tcp://localhost:1883", cleanStart = true, clientPrefix = "test")
         handler.connect(config)
 
-        verify(clientFactory).create(eq(config.brokerUrl), any(), eq(persistence))
-        verify(mqttClient).setCallback(any())
-        verify(mqttClient).connect(any())
+        eq(config.brokerUrl)?.let {
+            verify(clientFactory).create(it, any(), eq(persistence))
+            verify(mqttClient).setCallback(any())
+            verify(mqttClient).connect(any())
+        } ?: fail("Broker URL is null")
     }
 
     @Test

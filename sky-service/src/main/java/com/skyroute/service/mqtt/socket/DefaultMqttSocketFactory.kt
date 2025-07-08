@@ -1,12 +1,15 @@
 package com.skyroute.service.mqtt.socket
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.content.res.AssetManager
 import com.skyroute.core.mqtt.TlsConfig
 import org.bouncycastle.openssl.PEMEncryptedKeyPair
 import org.bouncycastle.openssl.PEMKeyPair
 import org.bouncycastle.openssl.PEMParser
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder
+import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.security.KeyStore
@@ -36,18 +39,29 @@ import javax.net.ssl.X509TrustManager
  *
  * @author Andre Suryana
  */
-class DefaultMqttSocketFactory : MqttSocketFactory {
+class DefaultMqttSocketFactory(
+    context: Context,
+) : MqttSocketFactory {
+
+    // TODO: Refactor this into separate class!
+    //  - `DefaultMqttSocketFactory` -> SocketFactory.getDefault()
+    //  - `SecureMqttSocketFactory` -> Combine createSSLSocketFactory and createMutualSSLSocketFactory
+
+    private val assetManager = context.applicationContext.assets
 
     override fun create(config: TlsConfig): SocketFactory {
         return when (config) {
             is TlsConfig.Disabled -> SocketFactory.getDefault()
 
-            is TlsConfig.ServerAuth -> createSSLSocketFactory(config.caInput, config.skipVerify)
+            is TlsConfig.ServerAuth -> createSSLSocketFactory(
+                assetManager.openOrThrow(config.caCertPath, "CA certificate"),
+                config.skipVerify
+            )
 
             is TlsConfig.MutualAuth -> createMutualSSLSocketFactory(
-                config.caInput,
-                config.clientCertInput,
-                config.clientKeyInput,
+                assetManager.openOrThrow(config.caCertPath, "CA certificate"),
+                assetManager.openOrThrow(config.clientCertPath, "client certificate"),
+                assetManager.openOrThrow(config.clientKeyPath, "client key"),
                 config.clientKeyPassword?.toCharArray() ?: CharArray(0),
                 config.skipVerify,
             )
@@ -131,6 +145,16 @@ class DefaultMqttSocketFactory : MqttSocketFactory {
             else -> throw IllegalArgumentException("Unsupported private key format: ${pemObject?.javaClass?.name}")
         }
     }
+
+    /**
+     * Tries to open a file from assets. Throws a clear error if the file is missing.
+     */
+    private fun AssetManager.openOrThrow(path: String, description: String): InputStream =
+        try {
+            open(path)
+        } catch (e: IOException) {
+            throw IOException("Unable to open $description at '$path' from assets.", e)
+        }
 
     companion object {
         @SuppressLint("CustomX509TrustManager")

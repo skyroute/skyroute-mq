@@ -101,12 +101,6 @@ class SkyRoute internal constructor(
             mqttHandler = binder.getMqttHandler()
             bound = true
 
-            // Load the config from builder, this will ignore the defined config in manifest
-            config?.let {
-                logger.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
-                mqttHandler?.connect(it)
-            }
-
             // Register message arrival
             mqttHandler?.onMessageArrival(onMessageArrivalHandler)
 
@@ -144,11 +138,11 @@ class SkyRoute internal constructor(
      */
     fun init(context: Context) {
         logger.i(TAG, "SkyRoute init...")
-        this.config = builder.config
         ServiceRegistry.initLogger(builder.logger)
 
         context.applicationContext.run { // Using application context to avoid memory leaks
             val intent = Intent(this, SkyRouteService::class.java)
+            intent.putExtra(SkyRouteService.EXTRA_CONFIG, builder.config)
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         }
     }

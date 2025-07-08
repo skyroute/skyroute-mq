@@ -47,7 +47,7 @@ class MqttConnectionHandler(
     private val logger: Logger = Logger.Default(),
     private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
     private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
-    private val mqttSocketFactory: MqttSocketFactory = DefaultMqttSocketFactory(),
+    private val mqttSocketFactory: MqttSocketFactory = DefaultMqttSocketFactory(context),
 ) : MqttHandler {
 
     private lateinit var mqttClient: IMqttAsyncClient

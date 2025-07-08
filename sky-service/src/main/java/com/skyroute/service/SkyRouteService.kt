@@ -20,6 +20,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
@@ -53,12 +54,12 @@ class SkyRouteService : Service() {
             ComponentName(this, SkyRouteService::class.java),
             PackageManager.GET_META_DATA,
         ).metaData
-        config = metaData.toMqttConfig(applicationContext)
+        config = metaData.toMqttConfig()
 
         mqttHandler = MqttConnectionHandler(
             context = this,
             logger = logger,
-            mqttSocketFactory = DefaultMqttSocketFactory(),
+            mqttSocketFactory = DefaultMqttSocketFactory(applicationContext),
         )
         mqttHandler.connect(config)
     }
@@ -82,7 +83,20 @@ class SkyRouteService : Service() {
      * @return The start mode for the service.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        logger.d(TAG, "Starting SkyRouteService! startId=$startId")
+        logger.d(TAG, "Starting SkyRouteService! startId=$startId, intent=$intent")
+
+        val newConfig = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_CONFIG, MqttConfig::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_CONFIG)
+        }
+
+        if (newConfig != null && !newConfig.isSameConfig(config)) {
+            logger.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
+            mqttHandler.connect(newConfig)
+        }
+
         return START_STICKY
     }
 
@@ -106,5 +120,7 @@ class SkyRouteService : Service() {
 
     companion object {
         private const val TAG = "SkyRouteService"
+
+        const val EXTRA_CONFIG = "config"
     }
 }

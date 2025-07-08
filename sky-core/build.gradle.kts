@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     id("skyroute-spotless")
     id("skyroute-maven-publish")
+    id("kotlin-parcelize")
 }
 
 android {
