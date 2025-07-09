@@ -2,11 +2,10 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     id("skyroute-spotless")
-    id("skyroute-maven-publish")
 }
 
 android {
-    namespace = "com.skyroute.service"
+    namespace = "com.skyroute.test"
     compileSdk = 35
 
     defaultConfig {
@@ -28,6 +27,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -41,18 +41,4 @@ android {
 dependencies {
 
     implementation(project(":sky-core"))
-
-    implementation(libs.kotlin.reflection)
-    implementation(libs.androidx.core.ktx)
-
-    testImplementation(project(":sky-test"))
-    testImplementation(libs.junit)
-    testImplementation(libs.robolectric)
-
-    // Paho MQTT Client
-    implementation(libs.paho.client)
-
-    // BCProv
-    implementation(libs.bcprov.jdk15to18)
-    implementation(libs.bcpkix.jdk15to18)
 }

@@ -29,6 +29,7 @@ include(":skyroute-mq")
 include(":sky-api")
 include(":sky-core")
 include(":sky-service")
+include(":sky-test")
 
 include(":payload-adapter-gson")
 include(":payload-adapter-moshi")

@@ -1,0 +1,119 @@
+package com.skyroute.service.config
+
+import android.os.Bundle
+import com.skyroute.core.mqtt.MqttConfig.Companion.DEFAULT_CLEAN_START
+import com.skyroute.core.mqtt.MqttConfig.Companion.DEFAULT_CLIENT_PREFIX
+import com.skyroute.core.mqtt.MqttConfig.Companion.DEFAULT_CONNECTION_TIMEOUT
+import com.skyroute.core.mqtt.MqttConfig.Companion.DEFAULT_KEEP_ALIVE_INTERVAL
+import com.skyroute.core.mqtt.TlsConfig
+import com.skyroute.core.util.TestLogger
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * @author Andre Suryana
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [29], manifest = Config.NONE)
+class ConfigResolverTest {
+
+    private lateinit var metaData: Bundle
+    private val logger = TestLogger()
+
+    @Before
+    fun setUp() {
+        metaData = Bundle()
+    }
+
+    @Test
+    fun `resolve returns config with default values when optional fields are missing`() {
+        metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
+        val config = ConfigResolver(metaData, logger).resolve()
+
+        assertEquals("tcp://localhost:1883", config.brokerUrl)
+        assertEquals(DEFAULT_CLIENT_PREFIX, config.clientPrefix)
+        assertEquals(DEFAULT_CLEAN_START, config.cleanStart)
+        assertEquals(DEFAULT_CONNECTION_TIMEOUT, config.connectionTimeout)
+        assertEquals(DEFAULT_KEEP_ALIVE_INTERVAL, config.keepAliveInterval)
+    }
+
+    @Test
+    fun `resolve throws when brokerUrl is missing`() {
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            ConfigResolver(metaData, logger).resolve()
+        }
+        assertTrue(exception.message!!.contains("Missing required value: mqttBrokerUrl"))
+    }
+
+    @Test
+    fun `resolve throws when brokerUrl scheme is invalid`() {
+        metaData.putString("mqttBrokerUrl", "http://localhost:1883")
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            ConfigResolver(metaData, logger).resolve()
+        }
+        assertTrue(exception.message!!.contains("Invalid value for mqttBrokerUrl"))
+    }
+
+    @Test
+    fun `resolve throws when reconnect delay constraints are invalid`() {
+        metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
+        metaData.putInt("autoReconnectMinDelay", 10)
+        metaData.putInt("autoReconnectMaxDelay", 5)
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            ConfigResolver(metaData, logger).resolve()
+        }
+        println("Exception message: ${exception.message}")
+        assertTrue(exception.message!!.contains("autoReconnectMaxDelay must be greater than or equal to autoReconnectMinDelay"))
+    }
+
+    @Test
+    fun `resolve throws when only one of client cert or key is provided`() {
+        metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
+        metaData.putString("caCertPath", "certs/ca.crt")
+        metaData.putString("clientCertPath", "certs/client.key")
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            ConfigResolver(metaData, logger).resolve()
+        }
+        assertTrue(exception.message!!.contains("Both clientCertPath and clientKeyPath must be provided"))
+    }
+
+    @Test
+    fun `resolve sets tlsConfig as ServerAuth when only caCert is set`() {
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
+        metaData.putString("caCertPath", "certs/ca.crt")
+
+        val config = ConfigResolver(metaData, logger).resolve()
+        assertTrue(config.tlsConfig is TlsConfig.ServerAuth)
+    }
+
+    @Test
+    fun `resolve sets tlsConfig as MutualAuth when all certs are provided`() {
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
+        metaData.putString("caCertPath", "certs/ca.crt")
+        metaData.putString("clientCertPath", "certs/client.crt")
+        metaData.putString("clientKeyPath", "certs/client.key")
+
+        val config = ConfigResolver(metaData, logger).resolve()
+        assertTrue(config.tlsConfig is TlsConfig.MutualAuth)
+    }
+
+    @Test
+    fun `resolve logs warning if brokerUrl is ssl and tlsConfig is disabled`() {
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
+        // no caCertPath = no TLS config
+
+        ConfigResolver(metaData, logger).resolve()
+        logger.logs.forEach {
+            println(it)
+        }
+        assertTrue(logger.logs.any { it.contains("TLS configuration is required for SSL") })
+    }
+}

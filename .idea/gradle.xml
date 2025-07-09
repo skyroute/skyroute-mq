@@ -29,10 +29,10 @@
             <option value="$PROJECT_DIR$/sky-api" />
             <option value="$PROJECT_DIR$/sky-core" />
             <option value="$PROJECT_DIR$/sky-service" />
+            <option value="$PROJECT_DIR$/sky-test" />
             <option value="$PROJECT_DIR$/skyroute-mq" />
           </set>
         </option>
-        <option name="resolveExternalAnnotations" value="false" />
       </GradleProjectSettings>
     </option>
   </component>
