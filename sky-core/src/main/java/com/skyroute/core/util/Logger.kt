@@ -46,6 +46,13 @@ interface Logger {
     fun d(tag: String, msg: String)
 
     /**
+     * Logs a debug message.
+     *
+     * @param msg The message to log.
+     */
+    fun d(msg: String)
+
+    /**
      * Logs an informational message.
      *
      * @param tag A string used to identify the source of the log message.
@@ -54,12 +61,26 @@ interface Logger {
     fun i(tag: String, msg: String)
 
     /**
+     * Logs an informational message.
+     *
+     * @param msg The message to log.
+     */
+    fun i(msg: String)
+
+    /**
      * Logs a warning message.
      *
      * @param tag A string used to identify the source of the log message.
      * @param msg The message to log.
      */
     fun w(tag: String, msg: String)
+
+    /**
+     * Logs a warning message.
+     *
+     * @param msg The message to log.
+     */
+    fun w(msg: String)
 
     /**
      * Logs an error message.
@@ -91,12 +112,24 @@ interface Logger {
             Log.d(tag, msg)
         }
 
+        override fun d(msg: String) {
+            Log.d(getCallerClassName(), msg)
+        }
+
         override fun i(tag: String, msg: String) {
             Log.i(tag, msg)
         }
 
+        override fun i(msg: String) {
+            Log.i(getCallerClassName(), msg)
+        }
+
         override fun w(tag: String, msg: String) {
             Log.w(tag, msg)
+        }
+
+        override fun w(msg: String) {
+            Log.w(getCallerClassName(), msg)
         }
 
         override fun e(tag: String, msg: String) {
@@ -115,6 +148,9 @@ interface Logger {
     class Stdout : Logger {
         override fun v(tag: String, msg: String) = println("V/$tag: $msg")
         override fun d(tag: String, msg: String) = println("D/$tag: $msg")
+        override fun d(msg: String) = println("D/${getCallerClassName()}: $msg")
+        override fun i(msg: String) = println("I/${getCallerClassName()}: $msg")
+        override fun w(msg: String) = println("W/${getCallerClassName()}: $msg")
         override fun i(tag: String, msg: String) = println("I/$tag: $msg")
         override fun w(tag: String, msg: String) = println("W/$tag: $msg")
         override fun e(tag: String, msg: String) = println("E/$tag: $msg")
@@ -130,9 +166,29 @@ interface Logger {
     class None : Logger {
         override fun v(tag: String, msg: String) = Unit
         override fun d(tag: String, msg: String) = Unit
+        override fun d(msg: String) = Unit
+        override fun i(msg: String) = Unit
         override fun i(tag: String, msg: String) = Unit
         override fun w(tag: String, msg: String) = Unit
+        override fun w(msg: String) = Unit
         override fun e(tag: String, msg: String) = Unit
         override fun e(tag: String, msg: String, tr: Throwable?) = Unit
+    }
+
+    companion object {
+        fun getCallerClassName(): String {
+            val stackTrace = Thread.currentThread().stackTrace
+            for (element in stackTrace) {
+                if (
+                    !element.className.startsWith("java.lang.Thread") &&
+                    !element.className.contains("Logger") &&
+                    !element.className.contains("kotlin.") &&
+                    !element.className.contains("sun.reflect.")
+                ) {
+                    return element.className.substringAfterLast('.')
+                }
+            }
+            return ""
+        }
     }
 }

@@ -45,15 +45,15 @@ import kotlin.math.abs
 @Parcelize
 data class MqttConfig(
     var brokerUrl: String? = null,
-    var clientPrefix: String = "skyroute",
-    var cleanStart: Boolean = true,
+    var clientPrefix: String = DEFAULT_CLIENT_PREFIX,
+    var cleanStart: Boolean = DEFAULT_CLEAN_START,
     var sessionExpiryInterval: Int? = null,
-    var connectionTimeout: Int = 30,
-    var keepAliveInterval: Int = 60,
-    var automaticReconnect: Boolean = true,
-    var automaticReconnectMinDelay: Int = 1,
-    var automaticReconnectMaxDelay: Int = 120,
-    var maxReconnectDelay: Int = 21600,
+    var connectionTimeout: Int = DEFAULT_CONNECTION_TIMEOUT,
+    var keepAliveInterval: Int = DEFAULT_KEEP_ALIVE_INTERVAL,
+    var automaticReconnect: Boolean = DEFAULT_AUTO_RECONNECT,
+    var automaticReconnectMinDelay: Int = DEFAULT_AUTO_RECONNECT_MIN_DELAY,
+    var automaticReconnectMaxDelay: Int = DEFAULT_AUTO_RECONNECT_MAX_DELAY,
+    var maxReconnectDelay: Int = DEFAULT_MAX_RECONNECT_DELAY,
     var username: String? = null,
     var password: String? = null,
     var tlsConfig: TlsConfig = TlsConfig.Disabled,
@@ -89,5 +89,16 @@ data class MqttConfig(
             username == other.username &&
             password == other.password &&
             tlsConfig.isSameConfig(other.tlsConfig)
+    }
+
+    companion object {
+        const val DEFAULT_CLIENT_PREFIX = "skyroute"
+        const val DEFAULT_CLEAN_START = true
+        const val DEFAULT_CONNECTION_TIMEOUT = 30
+        const val DEFAULT_KEEP_ALIVE_INTERVAL = 60
+        const val DEFAULT_AUTO_RECONNECT = true
+        const val DEFAULT_AUTO_RECONNECT_MIN_DELAY = 1
+        const val DEFAULT_AUTO_RECONNECT_MAX_DELAY = 120
+        const val DEFAULT_MAX_RECONNECT_DELAY = 21600
     }
 }

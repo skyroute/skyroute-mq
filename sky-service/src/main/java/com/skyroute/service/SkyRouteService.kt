@@ -24,9 +24,9 @@ import android.os.Build
 import android.os.IBinder
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
+import com.skyroute.service.config.ConfigResolver
 import com.skyroute.service.mqtt.MqttConnectionHandler
 import com.skyroute.service.mqtt.socket.DefaultMqttSocketFactory
-import com.skyroute.service.util.MetadataUtils.toMqttConfig
 
 /**
  * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
@@ -54,7 +54,7 @@ class SkyRouteService : Service() {
             ComponentName(this, SkyRouteService::class.java),
             PackageManager.GET_META_DATA,
         ).metaData
-        config = metaData.toMqttConfig()
+        config = ConfigResolver(metaData).resolve()
 
         mqttHandler = MqttConnectionHandler(
             context = this,
