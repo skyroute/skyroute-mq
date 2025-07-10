@@ -32,7 +32,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve returns config with default values when optional fields are missing`() {
+    fun `returns config with default values when optional fields are missing`() {
         metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
         val config = ConfigResolver(metaData, logger).resolve()
 
@@ -44,7 +44,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve throws when brokerUrl is missing`() {
+    fun `throws when brokerUrl is missing`() {
         val exception = assertThrows(IllegalArgumentException::class.java) {
             ConfigResolver(metaData, logger).resolve()
         }
@@ -52,7 +52,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve throws when brokerUrl scheme is invalid`() {
+    fun `throws when brokerUrl scheme is invalid`() {
         metaData.putString("mqttBrokerUrl", "http://localhost:1883")
         val exception = assertThrows(IllegalArgumentException::class.java) {
             ConfigResolver(metaData, logger).resolve()
@@ -61,7 +61,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve throws when reconnect delay constraints are invalid`() {
+    fun `throws when reconnect delay constraints are invalid`() {
         metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
         metaData.putInt("autoReconnectMinDelay", 10)
         metaData.putInt("autoReconnectMaxDelay", 5)
@@ -74,7 +74,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve throws when only one of client cert or key is provided`() {
+    fun `throws when only one of client cert or key is provided`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:1883")
         metaData.putString("caCertPath", "asset://certs/ca.crt")
         metaData.putString("clientCertPath", "asset://certs/client.key")
@@ -86,7 +86,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve sets tlsConfig as ServerAuth when only caCert is set`() {
+    fun `sets tlsConfig as ServerAuth when only caCert is set`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
         metaData.putString("caCertPath", "asset://certs/ca.crt")
 
@@ -95,7 +95,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve sets tlsConfig as MutualAuth when all certs are provided`() {
+    fun `sets tlsConfig as MutualAuth when all certs are provided`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
         metaData.putString("caCertPath", "asset://certs/ca.crt")
         metaData.putString("clientCertPath", "asset://certs/client.crt")
@@ -106,7 +106,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve throws when certs and key path prefix scheme is invalid`() {
+    fun `throws when certs and key path prefix scheme is invalid`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
         metaData.putString("caCertPath", "certs/ca.crt")
         metaData.putString("clientCertPath", "assets/client.crt")
