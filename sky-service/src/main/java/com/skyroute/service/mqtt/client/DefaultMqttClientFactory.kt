@@ -15,23 +15,57 @@
  */
 package com.skyroute.service.mqtt.client
 
-import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
+import com.skyroute.core.mqtt.MqttConfig
+import com.skyroute.core.mqtt.TlsConfig
+import com.skyroute.service.mqtt.socket.MqttSocketFactory
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient
-import org.eclipse.paho.mqttv5.client.MqttClientPersistence
+import org.eclipse.paho.mqttv5.client.MqttConnectionOptions
+import org.eclipse.paho.mqttv5.client.persist.MqttDefaultFilePersistence
 
 /**
  * Default implementation of [MqttClientFactory] that creates real
  * [MqttAsyncClient] instances using provided configuration.
  *
+ * @param persistenceDir The directory where persistent data will be stored.
+ * @param socketFactory A factory for creating [MqttSocketFactory] instances.
+ *
  * @author Andre Suryana
  */
-internal class DefaultMqttClientFactory : MqttClientFactory {
+internal class DefaultMqttClientFactory(
+    private val persistenceDir: String,
+    private val socketFactory: MqttSocketFactory,
+) : MqttClientFactory {
 
-    override fun create(
-        brokerUrl: String,
-        clientId: String,
-        persistence: MqttClientPersistence,
-    ): IMqttAsyncClient {
-        return MqttAsyncClient(brokerUrl, clientId, persistence)
+    override fun create(config: MqttConfig): MqttClientBundle {
+        val client = MqttAsyncClient(
+            config.brokerUrl,
+            config.clientId,
+            MqttDefaultFilePersistence(persistenceDir),
+        )
+
+        val options = MqttConnectionOptions().apply {
+            serverURIs = arrayOf(config.brokerUrl)
+            isCleanStart = config.cleanStart
+            config.sessionExpiryInterval?.let {
+                sessionExpiryInterval = it.toLong()
+            }
+            connectionTimeout = config.connectionTimeout
+            keepAliveInterval = config.keepAliveInterval
+            isAutomaticReconnect = config.automaticReconnect
+            setAutomaticReconnectDelay(
+                config.automaticReconnectMinDelay,
+                config.automaticReconnectMaxDelay,
+            )
+            maxReconnectDelay = config.maxReconnectDelay
+
+            config.username?.let { userName = it }
+            config.password?.let { password = it.toByteArray() }
+
+            if (config.tlsConfig !is TlsConfig.None) {
+                socketFactory = this@DefaultMqttClientFactory.socketFactory.create(config.tlsConfig)
+            }
+        }
+
+        return MqttClientBundle(client, options)
     }
 }

@@ -26,6 +26,9 @@ import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.service.config.ConfigResolver
 import com.skyroute.service.mqtt.MqttConnectionHandler
+import com.skyroute.service.mqtt.client.DefaultMqttClientFactory
+import com.skyroute.service.mqtt.socket.MqttSocketFactory
+import java.io.File
 
 /**
  * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
@@ -42,6 +45,11 @@ class SkyRouteService : Service() {
     private lateinit var config: MqttConfig
     private lateinit var mqttHandler: MqttHandler
 
+    private val persistenceDir: String
+        get() = File(cacheDir, "skyroute-persistence").apply {
+            mkdirs() // Create directory if not exists
+        }.absolutePath
+
     /**
      * Initializes the MQTT connection using configuration parameters from the service metadata.
      */
@@ -56,8 +64,11 @@ class SkyRouteService : Service() {
         config = ConfigResolver(metaData).resolve()
 
         mqttHandler = MqttConnectionHandler(
-            context = this,
             logger = logger,
+            clientFactory = DefaultMqttClientFactory(
+                persistenceDir = persistenceDir,
+                socketFactory = MqttSocketFactory(this),
+            ),
         )
         mqttHandler.connect(config)
     }

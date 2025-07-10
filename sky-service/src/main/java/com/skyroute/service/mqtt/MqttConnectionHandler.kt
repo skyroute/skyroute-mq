@@ -15,22 +15,15 @@
  */
 package com.skyroute.service.mqtt
 
-import android.content.Context
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.OnMessageArrival
-import com.skyroute.core.mqtt.TlsConfig
 import com.skyroute.core.util.Logger
-import com.skyroute.service.mqtt.client.DefaultMqttClientFactory
 import com.skyroute.service.mqtt.client.MqttClientFactory
-import com.skyroute.service.mqtt.persistence.DefaultPersistenceFactory
-import com.skyroute.service.mqtt.persistence.PersistenceFactory
-import com.skyroute.service.mqtt.socket.MqttSocketFactory
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
 import org.eclipse.paho.mqttv5.client.IMqttToken
 import org.eclipse.paho.mqttv5.client.MqttCallback
-import org.eclipse.paho.mqttv5.client.MqttConnectionOptions
 import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
 import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
@@ -40,21 +33,21 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * Implementation of the MQTT handler with Paho MQTT v5.
  *
+ * @param logger The logger for logging messages.
+ * @param clientFactory The factory for creating MQTT clients.
+ *
  * @author Andre Suryana
  */
 class MqttConnectionHandler(
-    private val context: Context,
-    private val logger: Logger = Logger.Default(),
-    private val clientFactory: MqttClientFactory = DefaultMqttClientFactory(),
-    private val persistenceFactory: PersistenceFactory = DefaultPersistenceFactory(context),
-    private val mqttSocketFactory: MqttSocketFactory = MqttSocketFactory(context),
+    private val logger: Logger,
+    private val clientFactory: MqttClientFactory,
 ) : MqttHandler {
 
     private lateinit var mqttClient: IMqttAsyncClient
 
     private val pendingRequests = CopyOnWriteArrayList<() -> Unit>()
 
-    private var clientId: String? = null
+    private var activeClientId: String? = null
     private var onMessageArrivalCallback: OnMessageArrival? = null
     private var onDisconnectCallback: OnDisconnect? = null
 
@@ -64,39 +57,9 @@ class MqttConnectionHandler(
             mqttClient.disconnect()
         }
 
-        // Generate client ID for the session
-        this.mqttClient = clientFactory.create(
-            config.brokerUrl ?: throw IllegalArgumentException("MQTT broker URL is required"),
-            config.getClientId().run {
-                clientId = this
-                this
-            }, // Generate new client ID for the session and assign it to the client factory
-            persistenceFactory.create(),
-        )
-        logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '$clientId'")
-
-        val options = MqttConnectionOptions().apply {
-            serverURIs = arrayOf(config.brokerUrl)
-            isCleanStart = config.cleanStart
-            config.sessionExpiryInterval?.let {
-                sessionExpiryInterval = it.toLong()
-            }
-            connectionTimeout = config.connectionTimeout
-            keepAliveInterval = config.keepAliveInterval
-            isAutomaticReconnect = config.automaticReconnect
-            setAutomaticReconnectDelay(
-                config.automaticReconnectMinDelay,
-                config.automaticReconnectMaxDelay,
-            )
-            maxReconnectDelay = config.maxReconnectDelay
-
-            config.username?.let { userName = it }
-            config.password?.let { password = it.toByteArray() }
-
-            if (config.tlsConfig !is TlsConfig.None) {
-                socketFactory = mqttSocketFactory.create(config.tlsConfig)
-            }
-        }
+        val clientBundle = clientFactory.create(config)
+        mqttClient = clientBundle.client
+        activeClientId = mqttClient.clientId
 
         mqttClient.setCallback(object : MqttCallback {
             override fun disconnected(response: MqttDisconnectResponse?) {
@@ -145,7 +108,8 @@ class MqttConnectionHandler(
             }
         })
 
-        mqttClient.connect(options)
+        logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '${mqttClient.clientId}'")
+        mqttClient.connect(clientBundle.options)
     }
 
     override fun disconnect() {
@@ -153,10 +117,10 @@ class MqttConnectionHandler(
             if (isConnected()) {
                 mqttClient.disconnect()
             }
-            logger.i(TAG, "MQTT disconnected with client '$clientId'")
+            logger.i(TAG, "MQTT disconnected with client '$activeClientId'")
 
             // Clear any resources
-            clientId = null
+            activeClientId = null
             pendingRequests.clear()
         } catch (e: Exception) {
             logger.e(TAG, "MQTT disconnect error", e)
@@ -230,7 +194,7 @@ class MqttConnectionHandler(
 
     override fun hasPendingRequests(): Boolean = pendingRequests.isNotEmpty()
 
-    override fun getClientId(): String? = clientId
+    override fun getClientId(): String? = activeClientId
 
     companion object {
         private const val TAG = "MqttConnectionHandler"

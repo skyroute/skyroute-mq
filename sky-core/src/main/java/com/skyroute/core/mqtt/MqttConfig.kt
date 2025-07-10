@@ -60,18 +60,17 @@ data class MqttConfig(
 ) : Parcelable {
 
     /**
-     * Generates a unique client identifier for the MQTT connection based on the [clientPrefix]
-     * and the current system time in milliseconds.
+     * Generates a unique client identifier for the MQTT connection using the [clientPrefix]
+     * followed by a dash and a securely generated positive random number.
      *
      * @return A unique MQTT client ID string.
      */
-    fun getClientId(): String {
-        val random = SecureRandom()
-        val randomNum = abs(random.nextLong())
-
-        val separator = if (clientPrefix.endsWith('-')) "" else "-"
-        return "$clientPrefix$separator$randomNum"
-    }
+    val clientId: String
+        get() {
+            val random = abs(SecureRandom().nextLong())
+            val separator = if (clientPrefix.endsWith('-')) "" else "-"
+            return "$clientPrefix$separator$random"
+        }
 
     fun isSameConfig(other: MqttConfig?): Boolean {
         if (other == null) return false

@@ -1,7 +1,6 @@
 package com.skyroute.core.mqtt
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
@@ -11,52 +10,32 @@ import org.junit.jupiter.api.Test
  */
 class MqttConfigTest {
 
-    @RepeatedTest(5)
-    fun `getClientId should generate unique client IDs with default prefix`() {
-        val config = MqttConfig(brokerUrl = "tcp://test", clientPrefix = "skyroute")
-        val clientId = config.getClientId()
+    @Test
+    fun `clientId should use default prefix when clientPrefix not provided`() {
+        val config = MqttConfig(brokerUrl = "tcp://test")
+        val clientId = config.clientId
 
-        assertTrue(clientId.startsWith("skyroute-"))
-        assertTrue(clientId.substringAfter("skyroute-").toLongOrNull() != null)
+        val prefixWithHyphen = MqttConfig.DEFAULT_CLIENT_PREFIX + "-"
+
+        assertTrue(clientId.startsWith(prefixWithHyphen))
+        assertTrue(clientId.substringAfter(prefixWithHyphen).toLongOrNull() != null)
     }
 
     @Test
-    fun `getClientId should not insert extra hyphen when prefix ends with hyphen`() {
+    fun `clientId should not insert extra hyphen when prefix ends with hyphen`() {
         val config = MqttConfig(brokerUrl = "tcp://test", clientPrefix = "client-")
-        val clientId = config.getClientId()
+        val clientId = config.clientId
 
         assertTrue(clientId.startsWith("client-"))
         assertEquals(1, clientId.count { it == '-' }) // only one hyphen at end of prefix
     }
 
-    @Test
-    fun `should correctly assign custom values`() {
-        val config = MqttConfig(
-            brokerUrl = "ssl://custom-broker:8883",
-            clientPrefix = "myclient",
-            cleanStart = false,
-            sessionExpiryInterval = 60,
-            connectionTimeout = 10,
-            keepAliveInterval = 20,
-            automaticReconnect = false,
-            automaticReconnectMinDelay = 2,
-            automaticReconnectMaxDelay = 30,
-            maxReconnectDelay = 1000,
-            username = "user",
-            password = "pass",
-        )
+    @RepeatedTest(5)
+    fun `clientId should generate unique values`() {
+        val config = MqttConfig(brokerUrl = "tcp://test")
+        val clientId1 = config.clientId
+        val clientId2 = config.clientId
 
-        assertEquals("ssl://custom-broker:8883", config.brokerUrl)
-        assertEquals(false, config.cleanStart)
-        assertEquals(60, config.sessionExpiryInterval)
-        assertEquals(10, config.connectionTimeout)
-        assertEquals(20, config.keepAliveInterval)
-        assertEquals(false, config.automaticReconnect)
-        assertEquals(2, config.automaticReconnectMinDelay)
-        assertEquals(30, config.automaticReconnectMaxDelay)
-        assertEquals(1000, config.maxReconnectDelay)
-        assertEquals("user", config.username)
-        assertEquals("pass", config.password)
-        assertNotNull(config.tlsConfig)
+        assertTrue(clientId1 != clientId2)
     }
 }

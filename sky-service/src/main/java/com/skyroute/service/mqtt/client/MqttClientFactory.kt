@@ -15,8 +15,8 @@
  */
 package com.skyroute.service.mqtt.client
 
+import com.skyroute.core.mqtt.MqttConfig
 import org.eclipse.paho.mqttv5.client.IMqttAsyncClient
-import org.eclipse.paho.mqttv5.client.MqttClientPersistence
 
 /**
  * Factory interface for creating MQTT client instances.
@@ -31,14 +31,8 @@ interface MqttClientFactory {
     /**
      * Creates a new [IMqttAsyncClient] instance configured with the given parameters.
      *
-     * @param brokerUrl The MQTT broker URI.
-     * @param clientId The client ID to be used when connecting.
-     * @param persistence The persistence mechanism for the client session.
+     * @param config the configuration for the MQTT client.
      * @return a new [IMqttAsyncClient] instance.
      */
-    fun create(
-        brokerUrl: String,
-        clientId: String,
-        persistence: MqttClientPersistence,
-    ): IMqttAsyncClient
+    fun create(config: MqttConfig): MqttClientBundle
 }
