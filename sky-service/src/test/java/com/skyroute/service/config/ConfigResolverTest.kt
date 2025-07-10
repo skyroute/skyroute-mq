@@ -88,7 +88,7 @@ class ConfigResolverTest {
     @Test
     fun `resolve sets tlsConfig as ServerAuth when only caCert is set`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
-        metaData.putString("caCertPath", "certs/ca.crt")
+        metaData.putString("caCertPath", "asset://certs/ca.crt")
 
         val config = ConfigResolver(metaData, logger).resolve()
         assertTrue(config.tlsConfig is TlsConfig.ServerAuth)
@@ -97,9 +97,9 @@ class ConfigResolverTest {
     @Test
     fun `resolve sets tlsConfig as MutualAuth when all certs are provided`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
-        metaData.putString("caCertPath", "certs/ca.crt")
-        metaData.putString("clientCertPath", "certs/client.crt")
-        metaData.putString("clientKeyPath", "certs/client.key")
+        metaData.putString("caCertPath", "asset://certs/ca.crt")
+        metaData.putString("clientCertPath", "asset://certs/client.crt")
+        metaData.putString("clientKeyPath", "asset://certs/client.key")
 
         val config = ConfigResolver(metaData, logger).resolve()
         assertTrue(config.tlsConfig is TlsConfig.MutualAuth)
@@ -115,5 +115,37 @@ class ConfigResolverTest {
             println(it)
         }
         assertTrue(logger.logs.any { it.contains("TLS configuration is required for SSL") })
+    }
+
+    @Test
+    fun `resolve throws when certs and key path prefix scheme is invalid`() {
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
+        metaData.putString("caCertPath", "certs/ca.crt")
+        metaData.putString("clientCertPath", "assets/client.crt")
+        metaData.putString("clientKeyPath", "client.key")
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            ConfigResolver(metaData, logger).resolve()
+        }
+        assertTrue(exception.message!!.contains("must start with a valid scheme"))
+    }
+
+    @Test
+    fun `uses TlsConfig Default when brokerUrl scheme is ssl but no CA or client cert is provided`() {
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
+
+        val config = ConfigResolver(metaData, logger).resolve()
+        assertTrue(config.tlsConfig is TlsConfig.Default)
+    }
+
+    @Test
+    fun `uses TlsConfig Disabled when brokerUrl scheme is tcp regardless of CA or client cert presence`() {
+        metaData.putString("mqttBrokerUrl", "tcp://localhost:8883")
+        metaData.putString("caCertPath", "asset://certs/ca.crt")
+        metaData.putString("clientCertPath", "asset://certs/client.crt")
+        metaData.putString("clientKeyPath", "asset://certs/client.key")
+
+        val config = ConfigResolver(metaData, logger).resolve()
+        assertTrue(config.tlsConfig is TlsConfig.None)
     }
 }

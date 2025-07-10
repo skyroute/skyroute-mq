@@ -56,7 +56,7 @@ data class MqttConfig(
     var maxReconnectDelay: Int = DEFAULT_MAX_RECONNECT_DELAY,
     var username: String? = null,
     var password: String? = null,
-    var tlsConfig: TlsConfig = TlsConfig.Disabled,
+    var tlsConfig: TlsConfig = TlsConfig.None,
 ) : Parcelable {
 
     /**

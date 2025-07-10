@@ -26,7 +26,6 @@ import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.service.config.ConfigResolver
 import com.skyroute.service.mqtt.MqttConnectionHandler
-import com.skyroute.service.mqtt.socket.DefaultMqttSocketFactory
 
 /**
  * [SkyRouteService] is a service that manages MQTT client connections and handles topic-based messaging.
@@ -59,7 +58,6 @@ class SkyRouteService : Service() {
         mqttHandler = MqttConnectionHandler(
             context = this,
             logger = logger,
-            mqttSocketFactory = DefaultMqttSocketFactory(applicationContext),
         )
         mqttHandler.connect(config)
     }

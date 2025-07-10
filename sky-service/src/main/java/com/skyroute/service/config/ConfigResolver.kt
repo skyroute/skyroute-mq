@@ -55,7 +55,7 @@ class ConfigResolver(
         }
 
         val tlsConfig = resolveTlsConfig() ?: base.tlsConfig
-        if (brokerUrl.startsWith("ssl://") && tlsConfig is TlsConfig.Disabled) {
+        if (brokerUrl.startsWith("ssl://") && tlsConfig is TlsConfig.None) {
             logger.w("TLS configuration is required for SSL-based connections")
         }
 
@@ -89,9 +89,23 @@ class ConfigResolver(
             "Both $KEY_CLIENT_CERT_PATH and $KEY_CLIENT_KEY_PATH must be provided or neither must be provided"
         }
 
-        // TODO: Validate path format and supported prefixes:
-        //  - Ensure paths start with supported scheme (e.g., "asset://", "file://", "raw://")
-        //  - This will affect loading the file paths to `InputStream` in the `DefaultMqttSocketFactory`
+        val supportedSchemes = TlsConfig.supportedSchemes.joinToString(prefix = "(", postfix = ")")
+
+        require(TlsConfig.isValidPath(caCertPath)) {
+            "$KEY_CA_CERT_PATH must start with a valid scheme $supportedSchemes"
+        }
+
+        if (!clientCertPath.isNullOrEmpty()) {
+            require(TlsConfig.isValidPath(clientCertPath)) {
+                "$KEY_CLIENT_CERT_PATH must start with a valid scheme $supportedSchemes"
+            }
+        }
+
+        if (!clientKeyPath.isNullOrEmpty()) {
+            require(TlsConfig.isValidPath(clientKeyPath)) {
+                "$KEY_CLIENT_KEY_PATH must start with a valid scheme $supportedSchemes"
+            }
+        }
 
         val clientKeyPassword = metaData.getString(KEY_CLIENT_KEY_PASSWORD)
         val skipVerify = metaData.getBoolean(KEY_INSECURE_SKIP_VERIFY, false)

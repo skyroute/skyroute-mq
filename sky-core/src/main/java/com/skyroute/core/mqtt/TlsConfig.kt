@@ -16,8 +16,9 @@
 package com.skyroute.core.mqtt
 
 import android.os.Parcelable
-import com.skyroute.core.mqtt.TlsConfig.Disabled
+import com.skyroute.core.mqtt.TlsConfig.Default
 import com.skyroute.core.mqtt.TlsConfig.MutualAuth
+import com.skyroute.core.mqtt.TlsConfig.None
 import com.skyroute.core.mqtt.TlsConfig.ServerAuth
 import kotlinx.parcelize.Parcelize
 
@@ -26,11 +27,13 @@ import kotlinx.parcelize.Parcelize
  *
  * This sealed class defines different modes of TLS usage:
  *
- * - [Disabled]: No TLS; connection is made over plaintext.
+ * - [None]: No TLS; connection is made over plaintext.
+ * - [Default]: Uses system-provided TLS settings and trust store.
  * - [ServerAuth]: One-way TLS using a CA certificate to verify the server.
  * - [MutualAuth]: Mutual TLS (mTLS), where both client and server authenticate each other using certificates.
  *
- * @see Disabled
+ * @see None
+ * @see Default
  * @see ServerAuth
  * @see MutualAuth
  *
@@ -40,9 +43,15 @@ import kotlinx.parcelize.Parcelize
 sealed class TlsConfig : Parcelable {
 
     /**
-     * Disables TLS. Connections will be made in plaintext.
+     * No TLS. Connections will be made in plaintext.
      */
-    data object Disabled : TlsConfig()
+    data object None : TlsConfig()
+
+    /**
+     * Default TLS configuration. Using [javax.net.SocketFactory],
+     * system-provided TLS settings and trust store.
+     */
+    data object Default : TlsConfig()
 
     /**
      * Enables TLS with server authentication using a CA certificate.
@@ -83,7 +92,8 @@ sealed class TlsConfig : Parcelable {
         if (other == null) return false
         if (this === other) return true
         return when {
-            this is Disabled && other is Disabled -> true
+            this is None && other is None -> true
+            this is Default && other is Default -> true
             this is ServerAuth && other is ServerAuth -> this.caCertPath == other.caCertPath && this.skipVerify == other.skipVerify
             this is MutualAuth && other is MutualAuth ->
                 this.caCertPath == other.caCertPath &&
@@ -93,6 +103,18 @@ sealed class TlsConfig : Parcelable {
                     this.skipVerify == other.skipVerify
 
             else -> false
+        }
+    }
+
+    companion object {
+        const val PREFIX_ASSET = "asset://"
+        const val PREFIX_FILE = "file://"
+        const val PREFIX_RAW = "raw://"
+
+        val supportedSchemes = setOf(PREFIX_ASSET, PREFIX_FILE, PREFIX_RAW)
+
+        fun isValidPath(path: String): Boolean {
+            return supportedSchemes.any { path.startsWith(it) }
         }
     }
 }

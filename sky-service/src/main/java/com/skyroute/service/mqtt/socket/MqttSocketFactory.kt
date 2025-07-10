@@ -15,24 +15,49 @@
  */
 package com.skyroute.service.mqtt.socket
 
+import android.content.Context
 import com.skyroute.core.mqtt.TlsConfig
+import com.skyroute.service.mqtt.socket.cert.CertLoaderFactory
 import javax.net.SocketFactory
+import javax.net.ssl.SSLSocketFactory
 
 /**
- * Factory interface for creating [SocketFactory] instances
- * using the provided [TlsConfig] for TLS or mutual TLS connections.
+ * Creates platform-specific [SocketFactory] instance based on [TlsConfig].
  *
- * Allows custom or testable implementations.
+ * This factory supports the following TLS configurations:
+ * - [TlsConfig.None] - Plain TCP socket (no TLS).
+ * - [TlsConfig.Default] - Default system TLS (via [SSLSocketFactory.getDefault]).
+ * - [TlsConfig.ServerAuth] - One-way TLS using a CA certificate.
+ * - [TlsConfig.MutualAuth] - Mutual TLS using CA + client certificate + client private key.
  *
  * @author Andre Suryana
  */
-interface MqttSocketFactory {
+class MqttSocketFactory(private val context: Context) {
 
     /**
-     * Creates an [SocketFactory] based on the given [config].
+     * Creates a [SocketFactory] instance based on the given TLS configuration.
      *
-     * @param config TLS/mTLS configuration including certs and keys.
-     * @return a configured [SocketFactory].
+     * @param config TLS configuration for the MQTT connection.
+     * @return A configured [SocketFactory] instance.
      */
-    fun create(config: TlsConfig): SocketFactory
+    fun create(config: TlsConfig): SocketFactory = when (config) {
+        is TlsConfig.None -> SocketFactory.getDefault()
+
+        is TlsConfig.Default -> SSLSocketFactory.getDefault()
+
+        is TlsConfig.ServerAuth -> {
+            val caLoader = CertLoaderFactory(context).create(config.caCertPath)
+            ServerAuthSocketFactory(caLoader).create(config)
+        }
+
+        is TlsConfig.MutualAuth -> {
+            val factory = CertLoaderFactory(context)
+
+            val caLoader = factory.create(config.caCertPath)
+            val clientCertLoader = factory.create(config.clientCertPath)
+            val clientKeyLoader = factory.create(config.clientKeyPath)
+
+            MutualAuthSocketFactory(caLoader, clientCertLoader, clientKeyLoader).create(config)
+        }
+    }
 }
