@@ -54,7 +54,13 @@ class ConfigResolver(
             "$KEY_MAX_RECONNECT_DELAY must be greater than or equal to $KEY_AUTO_RECONNECT_MIN_DELAY and $KEY_AUTO_RECONNECT_MAX_DELAY"
         }
 
-        val tlsConfig = resolveTlsConfig() ?: base.tlsConfig
+        val tlsConfig = if (brokerUrl.startsWith("tcp://")) {
+            logger.w("TLS configuration provided but not used for TCP connections")
+            TlsConfig.None
+        } else {
+            resolveTlsConfig()
+        }
+
         if (brokerUrl.startsWith("ssl://") && tlsConfig is TlsConfig.None) {
             logger.w("TLS configuration is required for SSL-based connections")
         }
@@ -77,8 +83,8 @@ class ConfigResolver(
     }
 
     /** Resolves the [TlsConfig] from the provided [Bundle] metadata. */
-    private fun resolveTlsConfig(): TlsConfig? {
-        val caCertPath = metaData.getString(KEY_CA_CERT_PATH) ?: return null
+    private fun resolveTlsConfig(): TlsConfig {
+        val caCertPath = metaData.getString(KEY_CA_CERT_PATH) ?: return TlsConfig.Default
         val clientCertPath = metaData.getString(KEY_CLIENT_CERT_PATH)
         val clientKeyPath = metaData.getString(KEY_CLIENT_KEY_PATH)
 

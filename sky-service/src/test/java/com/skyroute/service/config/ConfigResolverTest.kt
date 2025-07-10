@@ -75,9 +75,9 @@ class ConfigResolverTest {
 
     @Test
     fun `resolve throws when only one of client cert or key is provided`() {
-        metaData.putString("mqttBrokerUrl", "tcp://localhost:1883")
-        metaData.putString("caCertPath", "certs/ca.crt")
-        metaData.putString("clientCertPath", "certs/client.key")
+        metaData.putString("mqttBrokerUrl", "ssl://localhost:1883")
+        metaData.putString("caCertPath", "asset://certs/ca.crt")
+        metaData.putString("clientCertPath", "asset://certs/client.key")
 
         val exception = assertThrows(IllegalArgumentException::class.java) {
             ConfigResolver(metaData, logger).resolve()
@@ -106,18 +106,6 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `resolve logs warning if brokerUrl is ssl and tlsConfig is disabled`() {
-        metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
-        // no caCertPath = no TLS config
-
-        ConfigResolver(metaData, logger).resolve()
-        logger.logs.forEach {
-            println(it)
-        }
-        assertTrue(logger.logs.any { it.contains("TLS configuration is required for SSL") })
-    }
-
-    @Test
     fun `resolve throws when certs and key path prefix scheme is invalid`() {
         metaData.putString("mqttBrokerUrl", "ssl://localhost:8883")
         metaData.putString("caCertPath", "certs/ca.crt")
@@ -139,7 +127,7 @@ class ConfigResolverTest {
     }
 
     @Test
-    fun `uses TlsConfig Disabled when brokerUrl scheme is tcp regardless of CA or client cert presence`() {
+    fun `uses TlsConfig None when brokerUrl scheme is tcp regardless of CA or client cert presence`() {
         metaData.putString("mqttBrokerUrl", "tcp://localhost:8883")
         metaData.putString("caCertPath", "asset://certs/ca.crt")
         metaData.putString("clientCertPath", "asset://certs/client.crt")
