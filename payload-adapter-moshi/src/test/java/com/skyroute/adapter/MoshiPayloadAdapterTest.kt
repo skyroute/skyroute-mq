@@ -18,8 +18,8 @@ package com.skyroute.adapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.adapter.decode
 import com.skyroute.core.adapter.encode
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Test
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 /**
  * @author Andre Suryana
@@ -30,10 +30,10 @@ class MoshiPayloadAdapterTest {
 
     @Test
     fun `test encode and decode object`() {
-        val original = TestObject("Test", 123)
+        val original = TestPayload("Test", 123)
 
         val encoded = adapter.encode(original)
-        val decoded = adapter.decode<TestObject>(encoded)
+        val decoded = adapter.decode<TestPayload>(encoded)
 
         assertEquals(original, decoded)
     }

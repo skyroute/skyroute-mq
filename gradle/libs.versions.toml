@@ -5,7 +5,6 @@ gson = "2.13.0"
 kotlin = "1.9.24"
 coreKtx = "1.16.0"
 junit = "4.13.2"
-junitJupiter = "5.11.0"
 espressoCore = "3.6.1"
 appcompat = "1.7.0"
 lifecycleViewModel = "2.8.7"
@@ -24,7 +23,6 @@ bcprov-jdk15to18 = { module = "org.bouncycastle:bcprov-jdk15to18", version.ref =
 bcpkix-jdk15to18 = { module = "org.bouncycastle:bcpkix-jdk15to18", version.ref = "bouncyCastle" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
-junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junitJupiter" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }

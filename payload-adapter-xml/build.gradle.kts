@@ -37,12 +37,6 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
-
-    testOptions {
-        unitTests.all {
-            it.useJUnitPlatform()
-        }
-    }
 }
 
 dependencies {
@@ -51,5 +45,6 @@ dependencies {
     implementation(libs.jackson)
     implementation(libs.jackson.module.kotlin)
 
-    testImplementation(libs.junit.jupiter)
+    testImplementation(project(":sky-test"))
+    testImplementation(libs.junit)
 }

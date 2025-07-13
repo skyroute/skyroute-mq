@@ -16,11 +16,11 @@
 package com.skyroute.adapter
 
 /**
- * A test object for XmlPayloadAdapter.
+ * A test payload for payload adapter tests.
  *
  * @author Andre Suryana
  */
-data class XmlObject(
+data class TestPayload(
     val name: String,
     val age: Int,
 )
