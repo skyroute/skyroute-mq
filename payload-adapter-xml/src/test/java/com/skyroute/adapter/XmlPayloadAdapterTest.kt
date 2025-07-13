@@ -32,6 +32,16 @@ class XmlPayloadAdapterTest {
     )
 
     @Test
+    fun `test decode raw XML bytes`() {
+        val xml = """<TestPayload><name>Andre Suryana</name><age>23</age></TestPayload>"""
+        val bytes = xml.toByteArray()
+
+        val decoded = adapter.decode<TestPayload>(bytes)
+
+        assertEquals(decoded, TestPayload("Andre Suryana", 23))
+    }
+
+    @Test
     fun `test encode and decode object`() {
         val original = TestPayload("Test", 123)
 

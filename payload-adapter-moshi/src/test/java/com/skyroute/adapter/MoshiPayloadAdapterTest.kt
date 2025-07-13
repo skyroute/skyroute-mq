@@ -29,6 +29,16 @@ class MoshiPayloadAdapterTest {
     private val adapter: PayloadAdapter = MoshiPayloadAdapter()
 
     @Test
+    fun `test decode raw JSON bytes`() {
+        val json = """{"name":"Andre Suryana", "age": 23}"""
+        val bytes = json.toByteArray()
+
+        val decoded = adapter.decode<TestPayload>(bytes)
+
+        assertEquals(decoded, TestPayload("Andre Suryana", 23))
+    }
+
+    @Test
     fun `test encode and decode object`() {
         val original = TestPayload("Test", 123)
 
