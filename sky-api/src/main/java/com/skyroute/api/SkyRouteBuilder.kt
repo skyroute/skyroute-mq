@@ -18,6 +18,7 @@ package com.skyroute.api
 import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.mqtt.MqttConfig
+import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.TlsConfig
 import com.skyroute.core.util.Logger
 import java.util.concurrent.ExecutorService
@@ -33,12 +34,7 @@ import java.util.concurrent.Executors
  */
 class SkyRouteBuilder {
 
-    // TODO: RFU, when topic received but there's no subscriber, we should throw exception
-    internal var sendNoSubscriberEvent: Boolean = true
-        private set
-
-    // TODO: RFU, throw exception for method invocation failed
-    internal var sendInvocationFailedEvent: Boolean = true
+    internal var throwsInvocationException: Boolean = true
         private set
 
     internal var executorService: ExecutorService = Executors.newCachedThreadPool()
@@ -53,18 +49,14 @@ class SkyRouteBuilder {
     internal var config: MqttConfig = MqttConfig()
         private set
 
-    /**
-     * Whether to emit an event when a message has no matching subscriber.
-     */
-    fun sendNoSubscriberEvent(sendNoSubscriberEvent: Boolean) = apply {
-        this.sendNoSubscriberEvent = sendNoSubscriberEvent
-    }
+    internal var onDisconnect: OnDisconnect? = null
+        private set
 
     /**
-     * Whether to emit an event when a subscriber method throws an error.
+     * Whether to emit an exception when a subscriber method invocation fails.
      */
-    fun sendInvocationFailedEvent(sendInvocationFailedEvent: Boolean) = apply {
-        this.sendInvocationFailedEvent = sendInvocationFailedEvent
+    fun throwsInvocationException(throwsInvocationException: Boolean) = apply {
+        this.throwsInvocationException = throwsInvocationException
     }
 
     /**
@@ -173,6 +165,13 @@ class SkyRouteBuilder {
      */
     fun tlsConfig(tlsConfig: TlsConfig) = apply {
         this.config.tlsConfig = tlsConfig
+    }
+
+    /**
+     * Sets the callback function to handle disconnection events.
+     */
+    fun onDisconnectCallback(callback: OnDisconnect) = apply {
+        this.onDisconnect = callback
     }
 
     /**

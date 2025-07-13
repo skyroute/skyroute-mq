@@ -27,9 +27,7 @@ import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.api.util.TopicUtils.matchesTopic
 import com.skyroute.core.adapter.PayloadAdapter
-import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
-import com.skyroute.core.mqtt.OnDisconnect
 import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.service.ServiceRegistry
 import com.skyroute.service.SkyRouteService
@@ -87,7 +85,6 @@ class SkyRoute internal constructor(
     private val executorService = builder.executorService
     private val logger = builder.logger
     private val payloadAdapter = builder.payloadAdapter
-    private var config: MqttConfig? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -103,6 +100,10 @@ class SkyRoute internal constructor(
 
             // Register message arrival
             mqttHandler?.onMessageArrival(onMessageArrivalHandler)
+            mqttHandler?.onDisconnect { code, reason ->
+                logger.w(TAG, "SkyRoute disconnected! Code: $code, Reason: $reason")
+                builder.onDisconnect?.invoke(code, reason)
+            }
 
             synchronized(pendingRegistrations) {
                 pendingRegistrations.forEach { internalRegister(it) }
@@ -123,11 +124,15 @@ class SkyRoute internal constructor(
             .values
             .flatten()
             .forEach { subscription ->
-                invokeMethod(
-                    subscription,
-                    message,
-                    extractWildcards(subscription.subscriberMethod.topic, topic),
-                )
+                try {
+                    invokeMethod(
+                        subscription,
+                        message,
+                        extractWildcards(subscription.subscriberMethod.topic, topic),
+                    )
+                } catch (e: Exception) {
+                    if (builder.throwsInvocationException) throw e
+                }
             }
     }
 
@@ -219,6 +224,7 @@ class SkyRoute internal constructor(
      * @param subscription The subscription that holds the subscriber method.
      * @param message The message to pass to the subscriber's method.
      * @param wildcards Any wildcards extracted from the topic.
+     * @throws Exception if an error occurs during method invocation.
      */
     private fun invokeMethod(subscription: Subscription, message: ByteArray, wildcards: List<String>? = null) {
         // Check if the subscription is still active
@@ -264,12 +270,11 @@ class SkyRoute internal constructor(
                 method.invoke(subscriber, *args)
             } catch (e: InvocationTargetException) {
                 logger.e(TAG, "Method invocation failed", e)
+                throw e
             } catch (e: Exception) {
                 logger.e(TAG, "Unexpected error during method invocation", e)
+                throw e
             }
-            // TODO: Should determine to handle exception or not,
-            //  we can rethrow it if we want (maybe configured by flag in builder)
-            //  or just log it and continue.
         }
 
         // FIXME: Introduce into separate method
@@ -372,7 +377,7 @@ class SkyRoute internal constructor(
     }
 
     /**
-     * Publishes a message with a specified Quality of Service (QoS) level and retain flag.
+     * Publishes a message with a specified Quality of Service (QoS) level, retain flag, and TTL.
      *
      * @param topic The topic to publish the message to.
      * @param message The message to be published.
@@ -391,15 +396,5 @@ class SkyRoute internal constructor(
 
         val encoded = builder.payloadAdapter.encode(message, message::class.java)
         mqttHandler?.publish(topic, encoded, qos, retain, ttl)
-    }
-
-    // FIXME: This implementation overrides any previously set callback, which makes the disconnect listener global.
-    //        This could lead to unintended side effects if multiple components attempt to register their own callbacks.
-    //        Consider alternative approaches:
-    //        - Maintain a list of callbacks and invoke all of them on disconnect.
-    //        - Allow each component to register its own listener with isolation.
-    //        - Introduce a dispatcher or observer pattern to support multiple listeners.
-    fun setOnDisconnectCallback(callback: OnDisconnect) {
-        mqttHandler?.onDisconnect(callback)
     }
 }
