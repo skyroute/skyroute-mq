@@ -85,12 +85,23 @@ internal class SubscriberManager(
         val topics = typesBySubscriber[subscriber] ?: return
 
         topics.forEach { topic ->
-            forEachMatchingSubscriptions(topic) { subscription ->
-                if (subscription.subscriber == subscriber) {
-                    subscription.active = false
-                    topicDelegate.unsubscribe(topic)
-                    logger.d(TAG, "Marked subscription as inactive: ${subscription.subscriberMethod.description}")
+            val subscriptions = subscriptionsByTopic[topic]
+
+            val toRemove = mutableSetOf<Subscription>()
+            subscriptions?.forEach { sub ->
+                if (sub.subscriber == subscriber) {
+                    logger.d(TAG, "Marked subscription as inactive: ${sub.subscriberMethod.description}")
+                    sub.active = false
+                    toRemove.add(sub)
                 }
+            }
+            subscriptions?.removeAll(toRemove)
+
+            // Only unsubscribe if topic has no remaining active subscriptions
+            val stillActive = subscriptions?.any { it.active } ?: false
+            if (!stillActive) {
+                topicDelegate.unsubscribe(topic)
+                logger.d(TAG, "Unsubscribed from topic: $topic (no active subscribers)")
             }
         }
 
