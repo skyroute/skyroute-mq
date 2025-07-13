@@ -84,7 +84,7 @@ class SkyRoute internal constructor(
                 override fun unsubscribe(topic: String) {
                     mqttHandler?.unsubscribe(topic)
                 }
-            }
+            },
         )
     }
 

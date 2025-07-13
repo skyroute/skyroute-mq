@@ -88,7 +88,7 @@ class MqttConnectionHandler(
 
                 logger.d(
                     TAG,
-                    "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete"
+                    "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete",
                 )
             }
 
@@ -103,7 +103,7 @@ class MqttConnectionHandler(
             override fun authPacketArrived(reasonCode: Int, properties: MqttProperties?) {
                 logger.d(
                     TAG,
-                    "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties"
+                    "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties",
                 )
             }
         })
@@ -158,7 +158,7 @@ class MqttConnectionHandler(
         message: ByteArray,
         qos: Int,
         retain: Boolean,
-        ttlInSeconds: Long?
+        ttlInSeconds: Long?,
     ) {
         if (!isConnected()) {
             logger.w(TAG, "MQTT client not connected. Request queued.")
@@ -170,7 +170,7 @@ class MqttConnectionHandler(
             TAG,
             "publish: Publish to MQTT topic '$topic' with QoS $qos, retain: $retain, message: '${
                 String(message)
-            }'"
+            }'",
         )
         val msg = MqttMessage(message).apply {
             this.qos = qos
