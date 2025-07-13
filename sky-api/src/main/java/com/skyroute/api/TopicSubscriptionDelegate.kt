@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute
+package com.skyroute.api
 
 internal interface TopicSubscriptionDelegate {
     fun subscribe(topic: String, qos: Int)

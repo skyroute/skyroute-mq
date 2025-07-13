@@ -15,7 +15,6 @@
  */
 package com.skyroute.api
 
-import com.skyroute.TopicSubscriptionDelegate
 import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.util.Logger

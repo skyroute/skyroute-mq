@@ -21,7 +21,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import com.skyroute.TopicSubscriptionDelegate
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnMessageArrival

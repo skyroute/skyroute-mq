@@ -17,7 +17,6 @@ package com.skyroute.api
 
 import android.os.Handler
 import android.os.Looper
-import com.skyroute.TopicSubscriptionDelegate
 import com.skyroute.api.adapter.DefaultPayloadAdapter
 import com.skyroute.api.util.TopicUtils.matchesTopic
 import com.skyroute.core.adapter.PayloadAdapter
