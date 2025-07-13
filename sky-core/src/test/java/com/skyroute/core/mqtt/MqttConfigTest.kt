@@ -15,10 +15,9 @@
  */
 package com.skyroute.core.mqtt
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.RepeatedTest
-import org.junit.jupiter.api.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 /**
  * @author Andre Suryana
@@ -45,12 +44,14 @@ class MqttConfigTest {
         assertEquals(1, clientId.count { it == '-' }) // only one hyphen at end of prefix
     }
 
-    @RepeatedTest(5)
+    @Test
     fun `clientId should generate unique values`() {
-        val config = MqttConfig(brokerUrl = "tcp://test")
-        val clientId1 = config.clientId
-        val clientId2 = config.clientId
+        for (i in 1..10) {
+            val config = MqttConfig(brokerUrl = "tcp://test/$i")
+            val clientId1 = config.clientId
+            val clientId2 = config.clientId
 
-        assertTrue(clientId1 != clientId2)
+            assertTrue(clientId1 != clientId2)
+        }
     }
 }
