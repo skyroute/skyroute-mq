@@ -20,23 +20,15 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
-import com.skyroute.api.adapter.DefaultPayloadAdapter
+import com.skyroute.TopicSubscriptionDelegate
 import com.skyroute.api.util.TopicUtils.extractWildcards
-import com.skyroute.api.util.TopicUtils.matchesTopic
-import com.skyroute.core.adapter.PayloadAdapter
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.service.ServiceRegistry
 import com.skyroute.service.SkyRouteService
 import com.skyroute.service.SkyRouteService.SkyRouteBinder
-import java.lang.reflect.InvocationTargetException
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.Volatile
-import kotlin.reflect.KClass
 
 /**
  * SkyRoute is the core class that manage MQTT connection and message subscriptions.
@@ -73,18 +65,28 @@ class SkyRoute internal constructor(
         fun newBuilder(): SkyRouteBuilder = SkyRouteBuilder()
     }
 
-    private val subscriptionsByTopic: MutableMap<String, CopyOnWriteArrayList<Subscription>> = ConcurrentHashMap()
-    private val typesBySubscriber: MutableMap<Any, MutableList<String>> = ConcurrentHashMap()
-    private val pendingRegistrations = mutableListOf<Any>()
-
-    private val adapterCache: MutableMap<KClass<out PayloadAdapter>, PayloadAdapter> = ConcurrentHashMap()
-
     private var mqttHandler: MqttHandler? = null
     private var bound = false
 
-    private val executorService = builder.executorService
     private val logger = builder.logger
-    private val payloadAdapter = builder.payloadAdapter
+
+    private val pendingRegistrations = mutableListOf<Any>()
+    private val subscriberManager by lazy {
+        SubscriberManager(
+            logger = logger,
+            payloadAdapter = builder.payloadAdapter,
+            executorService = builder.executorService,
+            topicDelegate = object : TopicSubscriptionDelegate {
+                override fun subscribe(topic: String, qos: Int) {
+                    mqttHandler?.subscribe(topic, qos)
+                }
+
+                override fun unsubscribe(topic: String) {
+                    mqttHandler?.unsubscribe(topic)
+                }
+            }
+        )
+    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -106,7 +108,7 @@ class SkyRoute internal constructor(
             }
 
             synchronized(pendingRegistrations) {
-                pendingRegistrations.forEach { internalRegister(it) }
+                pendingRegistrations.forEach { subscriberManager.registerSubscriber(it) }
                 pendingRegistrations.clear()
             }
         }
@@ -119,21 +121,17 @@ class SkyRoute internal constructor(
     }
 
     private val onMessageArrivalHandler: OnMessageArrival = { topic, message ->
-        // Find all subscribers that have subscribed to this topic
-        subscriptionsByTopic.filterKeys { it.matchesTopic(topic) }
-            .values
-            .flatten()
-            .forEach { subscription ->
-                try {
-                    invokeMethod(
-                        subscription,
-                        message,
-                        extractWildcards(subscription.subscriberMethod.topic, topic),
-                    )
-                } catch (e: Exception) {
-                    if (builder.throwsInvocationException) throw e
-                }
+        subscriberManager.forEachMatchingSubscriptions(topic) { subscription ->
+            try {
+                subscriberManager.invoke(
+                    subscription,
+                    message,
+                    extractWildcards(subscription.subscriberMethod.topic, topic),
+                )
+            } catch (e: Exception) {
+                if (builder.throwsInvocationException) throw e
             }
+        }
     }
 
     /**
@@ -159,144 +157,11 @@ class SkyRoute internal constructor(
      */
     fun register(subscriber: Any) {
         if (bound && mqttHandler?.isConnected() == true) {
-            internalRegister(subscriber)
+            subscriberManager.registerSubscriber(subscriber)
         } else {
             logger.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
             synchronized(pendingRegistrations) {
                 pendingRegistrations.add(subscriber)
-            }
-        }
-    }
-
-    /**
-     * Internal method to register a subscriber.
-     *
-     * @param subscriber The subscriber object that has methods annotated with [Subscribe].
-     */
-    private fun internalRegister(subscriber: Any) {
-        val subscriberClass = subscriber::class.java
-        val methods = subscriberClass.declaredMethods.filter { it.getAnnotation(Subscribe::class.java) != null }
-        logger.d(TAG, "internalRegister: Registering ${methods.size} methods for subscriber: ${subscriberClass.name}")
-
-        if (methods.isEmpty()) {
-            logger.w(
-                TAG,
-                "No methods with @Subscribe annotation were found in class ${subscriberClass.name}. " +
-                    "Ensure you have at least one method annotated with @Subscribe(topic = ...) " +
-                    "and the method is not private or static.",
-            )
-            return
-        }
-
-        for (method in methods) {
-            val subscribeAnnotation = method.getAnnotation(Subscribe::class.java)
-                ?: throw IllegalArgumentException("Method ${method.name} in class ${subscriberClass.name} must be annotated with @Subscribe.")
-
-            val topic = subscribeAnnotation.topic
-            val qos = subscribeAnnotation.qos
-            val threadMode = subscribeAnnotation.threadMode
-            val adapterClass = subscribeAnnotation.adapter
-
-            // Wrap the method as a lambda
-            val subscriberMethod = SubscriberMethod(
-                method = method,
-                description = "${subscriberClass.name}#${method.name}",
-                threadMode = threadMode,
-                topic = topic,
-                qos = qos,
-                adapterClass = adapterClass,
-            )
-
-            val subscription = Subscription(subscriber, subscriberMethod)
-
-            // Subscribe to the topic
-            mqttHandler?.subscribe(topic, qos)
-
-            // Register into the maps
-            subscriptionsByTopic.getOrPut(topic) { CopyOnWriteArrayList() }.add(subscription)
-            typesBySubscriber.getOrPut(subscriber) { mutableListOf() }.add(topic)
-        }
-    }
-
-    /**
-     * Invokes the subscriber's method with the given message and thread mode.
-     *
-     * @param subscription The subscription that holds the subscriber method.
-     * @param message The message to pass to the subscriber's method.
-     * @param wildcards Any wildcards extracted from the topic.
-     * @throws Exception if an error occurs during method invocation.
-     */
-    private fun invokeMethod(subscription: Subscription, message: ByteArray, wildcards: List<String>? = null) {
-        // Check if the subscription is still active
-        if (!subscription.active) return
-
-        val method = subscription.subscriberMethod.method
-        val threadMode = subscription.subscriberMethod.threadMode
-        val subscriber = subscription.subscriber
-
-        // Use the globally configured PayloadAdapter by default
-        var adapter = payloadAdapter
-
-        // If a custom adapter is defined, try to retrieve it from the cache or instantiate it
-        // FIXME: Introduce into separate method
-        subscription.subscriberMethod.adapterClass.let { adapterClass ->
-            if (adapterClass != DefaultPayloadAdapter::class) {
-                adapter = adapterCache.getOrPut(adapterClass) {
-                    adapterClass.objectInstance ?: adapterClass.java.getDeclaredConstructor().newInstance()
-                }
-            }
-        }
-
-        // FIXME: Introduce into separate method
-        val invoke = lambda@{
-            try {
-                val params = method.parameterTypes
-                if (params.isEmpty() || params.size > 2) {
-                    throw IllegalArgumentException(
-                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
-                    )
-                }
-
-                val decoded = adapter.decode(message, params[0])
-
-                val args = when (params.size) {
-                    1 -> arrayOf(decoded)
-                    2 -> arrayOf(decoded, wildcards ?: emptyList<String>())
-                    else -> throw IllegalArgumentException(
-                        "Method ${method.name} in class ${subscriber::class.java.name} must have 1 or 2 parameters",
-                    )
-                }
-
-                method.invoke(subscriber, *args)
-            } catch (e: InvocationTargetException) {
-                logger.e(TAG, "Method invocation failed", e)
-                throw e
-            } catch (e: Exception) {
-                logger.e(TAG, "Unexpected error during method invocation", e)
-                throw e
-            }
-        }
-
-        // FIXME: Introduce into separate method
-        when (threadMode) {
-            ThreadMode.MAIN -> {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                    invoke()
-                } else {
-                    Handler(Looper.getMainLooper()).post { invoke() }
-                }
-            }
-
-            ThreadMode.BACKGROUND -> {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                    executorService.execute { invoke() }
-                } else {
-                    invoke()
-                }
-            }
-
-            ThreadMode.ASYNC -> {
-                executorService.execute { invoke() }
             }
         }
     }
@@ -308,7 +173,7 @@ class SkyRoute internal constructor(
      * @return `true` if the subscriber is registered, `false` otherwise.
      */
     fun isRegistered(subscriber: Any): Boolean {
-        return typesBySubscriber.containsKey(subscriber)
+        return subscriberManager.isRegistered(subscriber)
     }
 
     /**
@@ -322,19 +187,7 @@ class SkyRoute internal constructor(
             return
         }
 
-        val topics = typesBySubscriber[subscriber]
-        topics?.forEach { topic ->
-            val subscriptions = subscriptionsByTopic[topic]
-            subscriptions?.forEach { subscription ->
-                if (subscription.subscriber == subscriber) {
-                    subscription.active = false
-                    mqttHandler?.unsubscribe(topic)
-                    logger.d(TAG, "Marked subscription as inactive: ${subscription.subscriberMethod.description}")
-                }
-            }
-        }
-
-        typesBySubscriber.remove(subscriber)
+        subscriberManager.unregisterSubscriber(subscriber)
     }
 
     /**
