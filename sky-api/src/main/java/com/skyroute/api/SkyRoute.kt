@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.skyroute.api.util.TopicUtils.extractWildcards
+import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.core.mqtt.MqttHandler
 import com.skyroute.core.mqtt.OnMessageArrival
 import com.skyroute.service.ServiceRegistry
@@ -147,6 +148,34 @@ class SkyRoute internal constructor(
             intent.putExtra(SkyRouteService.EXTRA_CONFIG, builder.config)
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         }
+    }
+
+    /**
+     * Applies a new [MqttConfig] and reconnects the MQTT client.
+     *
+     * This will disconnect the current session (if any) and reconnect with the new configuration.
+     *
+     * @param config The new MQTT configuration to apply.
+     */
+    fun applyConfig(config: MqttConfig) {
+        if (!bound || mqttHandler == null) {
+            logger.w(TAG, "applyConfig: Service not yet bound! Cannot update config.")
+            return
+        }
+
+        logger.i(TAG, "applyConfig: Reconfiguring MQTT with new config...")
+
+        if (mqttHandler == null) {
+            logger.w(TAG, "applyConfig: MQTT handler is null! Cannot update config.")
+            return
+        }
+
+        if (pendingRegistrations.isNotEmpty()) {
+            logger.w(TAG, "applyConfig: Pending registrations will be lost!")
+            pendingRegistrations.clear()
+        }
+
+        mqttHandler?.connect(config)
     }
 
     /**

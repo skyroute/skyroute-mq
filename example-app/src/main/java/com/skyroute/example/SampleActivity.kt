@@ -15,35 +15,39 @@
  */
 package com.skyroute.example
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import com.skyroute.api.SkyRoute
 import com.skyroute.api.Subscribe
 import com.skyroute.api.ThreadMode
-import com.skyroute.example.databinding.ActivitySkyRouteSampleBinding
+import com.skyroute.example.SampleApplication.Companion.skyRoute
+import com.skyroute.example.databinding.ActivitySampleBinding
+import com.skyroute.example.setting.SettingsActivity
+import com.skyroute.example.viewmodel.CountDownViewModel
 
 /**
  * An example activity that demonstrates the usage of SkyRouteMQ.
  *
  * @author Andre Suryana
  */
-class SkyRouteSampleActivity : AppCompatActivity() {
+class SampleActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivitySkyRouteSampleBinding
+    private lateinit var binding: ActivitySampleBinding
     private lateinit var viewModel: CountDownViewModel
     private var isFirstAppendLog = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        binding = ActivitySkyRouteSampleBinding.inflate(layoutInflater)
+        binding = ActivitySampleBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        SkyRoute.getDefault().register(this)
+        setupToolbar()
+        setupButton()
 
-        setupPublishButton()
+        skyRoute.register(this)
 
         viewModel = ViewModelProvider(this)[CountDownViewModel::class.java]
         viewModel.countDown.observe(this) { seconds ->
@@ -56,16 +60,33 @@ class SkyRouteSampleActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
 
-        if (SkyRoute.getDefault().isRegistered(this)) {
-            SkyRoute.getDefault().unregister(this)
+        if (skyRoute.isRegistered(this)) {
+            skyRoute.unregister(this)
         }
     }
 
-    private fun setupPublishButton() {
+    private fun setupToolbar() {
+        binding.appBar.setOnMenuItemClickListener {
+            when (it.itemId) {
+                R.id.action_settings -> {
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun setupButton() {
         binding.btnPublish.setOnClickListener {
             val topic = binding.etTopic.text.toString()
             val message = binding.etMessage.text.toString()
             publishToTopic(topic, message)
+        }
+        binding.btnClear.setOnClickListener {
+            binding.tvLogs.text = getString(R.string.placeholder_logs)
+            binding.tvLogs.alpha = 0.5f
+            isFirstAppendLog = true
         }
     }
 
@@ -79,13 +100,14 @@ class SkyRouteSampleActivity : AppCompatActivity() {
             return
         }
 
-        SkyRoute.getDefault().publish(topic, message, 0, false)
+        skyRoute.publish(topic, message, 0, false)
         appendLogs("Published message on topic '$topic': $message")
     }
 
     private fun appendLogs(message: String) {
         if (isFirstAppendLog) {
             binding.tvLogs.text = "" // Clear logs
+            binding.tvLogs.alpha = 1f
             isFirstAppendLog = false
         }
         binding.tvLogs.append("$message\n")

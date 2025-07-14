@@ -20,4 +20,13 @@
     <string name="btn_publish">Publish</string>
     <string name="btn_clear">Clear Logs</string>
     <string name="placeholder_logs" tools:ignore="TypographyEllipsis">Logs will appear here...</string>
+
+    <string name="title_settings">Settings</string>
+    <string name="action_save">Save</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="dialog_save_settings_title">Confirm Changes</string>
+    <string name="dialog_save_settings_msg">You have unsaved changes. Do you want to apply them?</string>
+
 </resources>

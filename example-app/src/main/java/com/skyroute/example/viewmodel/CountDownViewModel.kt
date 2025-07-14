@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.skyroute.example
+package com.skyroute.example.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.skyroute.api.SkyRoute
 import com.skyroute.api.Subscribe
 import com.skyroute.api.ThreadMode
+import com.skyroute.example.SampleApplication.Companion.skyRoute
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -40,11 +40,11 @@ class CountDownViewModel : ViewModel() {
     val countDown: LiveData<Int> = _countDown
 
     init {
-        SkyRoute.getDefault().register(this)
+        skyRoute.register(this)
     }
 
     override fun onCleared() {
-        SkyRoute.getDefault().unregister(this)
+        skyRoute.unregister(this)
         countDownJob?.cancel()
         Log.i(TAG, "ViewModel cleared and timer cancelled")
     }
@@ -62,7 +62,7 @@ class CountDownViewModel : ViewModel() {
             }
 
             Log.i(TAG, "Countdown finished!")
-            SkyRoute.getDefault().publish("countdown/finished", true, 0, false)
+            skyRoute.publish("countdown/finished", true, 0, false)
             _countDown.postValue(-1)
         }
     }

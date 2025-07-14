@@ -1,0 +1,149 @@
+<!--
+  Copyright (C) 2025 Andre Suryana, SkyRoute (https://github.com/skyroute)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- MQTT Connection -->
+    <PreferenceCategory app:title="MQTT Connection">
+
+        <EditTextPreference
+            app:key="broker_url"
+            app:title="Broker URL"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="skyroute"
+            app:key="client_prefix"
+            app:title="Client Prefix"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="clean_start"
+            app:summaryOff="Session will be retained by the broker"
+            app:summaryOn="Clean session enabled"
+            app:title="Clean Session" />
+
+        <EditTextPreference
+            app:key="username"
+            app:title="Username"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:key="password"
+            app:title="Password"
+            app:useSimpleSummaryProvider="false" />
+
+        <ListPreference
+            app:defaultValue="none"
+            app:entries="@array/tls_entries"
+            app:entryValues="@array/tls_values"
+            app:key="tls_mode"
+            app:title="TLS Mode"
+            app:useSimpleSummaryProvider="true" />
+
+        <!-- Visible only when tls_mode = server_auth -->
+        <EditTextPreference
+            android:enabled="false"
+            app:dependency="tls_mode"
+            app:key="tls_ca_cert_path"
+            app:title="CA Certificate Path"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            android:enabled="false"
+            app:dependency="tls_mode"
+            app:key="tls_skip_verify"
+            app:summaryOff="Standard verification will be enforced"
+            app:summaryOn="Certificate chain and hostname will not be verified"
+            app:title="Skip Server Certificate Verification" />
+
+        <!-- Visible only when tls_mode = mutual_auth -->
+        <EditTextPreference
+            android:enabled="false"
+            app:key="tls_client_cert_path"
+            app:title="Client Certificate Path"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:enabled="false"
+            app:key="tls_client_key_path"
+            app:title="Client Private Key Path"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:enabled="false"
+            app:key="tls_client_key_password"
+            app:title="Client Key Password (optional)"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <!-- Connection Behavior -->
+    <PreferenceCategory app:title="Connection Settings">
+
+        <EditTextPreference
+            app:defaultValue="10"
+            app:key="connection_timeout"
+            app:title="Connection Timeout (sec)"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="30"
+            app:key="keep_alive_interval"
+            app:title="Keep Alive Interval (sec)"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="automatic_reconnect"
+            app:summaryOff="Reconnect must be handled manually"
+            app:summaryOn="Reconnect will be attempted automatically"
+            app:title="Enable Automatic Reconnect" />
+
+        <EditTextPreference
+            app:defaultValue="2"
+            app:key="reconnect_min_delay"
+            app:title="Reconnect Min Delay (sec)"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="30"
+            app:key="reconnect_max_delay"
+            app:title="Reconnect Max Delay (sec)"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="60"
+            app:key="max_reconnect_delay"
+            app:title="Max Total Reconnect Delay (sec)"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <!-- Behavior -->
+    <PreferenceCategory app:title="Messaging Behavior">
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="throws_invocation_exception"
+            app:summaryOff="Invocation failure will be ignored silently"
+            app:summaryOn="Exception will be thrown when invocation fails"
+            app:title="Throw Exception on Method Failure" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
