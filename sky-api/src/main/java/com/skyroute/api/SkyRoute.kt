@@ -175,7 +175,7 @@ class SkyRoute internal constructor(
             pendingRegistrations.clear()
         }
 
-        mqttHandler?.connect(config)
+        mqttHandler?.reconnect(config)
     }
 
     /**
