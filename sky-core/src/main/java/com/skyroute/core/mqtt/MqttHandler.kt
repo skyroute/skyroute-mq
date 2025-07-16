@@ -31,13 +31,6 @@ interface MqttHandler {
     fun connect(config: MqttConfig)
 
     /**
-     * Reconnects to the MQTT broker using the current configuration.
-     *
-     * @param config The configuration used for reconnecting to the broker.
-     */
-    fun reconnect(config: MqttConfig)
-
-    /**
      * Disconnects from the MQTT broker connection.
      */
     fun disconnect()

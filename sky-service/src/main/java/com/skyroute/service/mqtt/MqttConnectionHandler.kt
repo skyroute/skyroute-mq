@@ -28,7 +28,6 @@ import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse
 import org.eclipse.paho.mqttv5.common.MqttException
 import org.eclipse.paho.mqttv5.common.MqttMessage
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -47,96 +46,70 @@ class MqttConnectionHandler(
     private lateinit var mqttClient: IMqttAsyncClient
 
     private val pendingRequests = CopyOnWriteArrayList<() -> Unit>()
-    private val subscribedTopics = ConcurrentHashMap<String, Int>()
 
-    private var activeConfig: MqttConfig? = null
     private var activeClientId: String? = null
-
     private var onMessageArrivalCallback: OnMessageArrival? = null
     private var onDisconnectCallback: OnDisconnect? = null
 
-    private val callback = object : MqttCallback {
-        override fun disconnected(response: MqttDisconnectResponse?) {
-            logger.e(TAG, "MQTT disconnected! $response")
-            onDisconnectCallback?.invoke(response?.returnCode, response?.reasonString)
-        }
-
-        override fun mqttErrorOccurred(me: MqttException?) {
-            logger.e(TAG, "MQTT unknown error!", me)
-        }
-
-        override fun messageArrived(topic: String, message: MqttMessage) {
-            logger.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
-            onMessageArrivalCallback?.invoke(topic, message.payload)
-        }
-
-        override fun deliveryComplete(token: IMqttToken?) {
-            if (token == null) {
-                logger.d(TAG, "MQTT delivery complete: token is null")
-                return
-            }
-
-            val topics = token.topics?.joinToString() ?: "Unknown"
-            val message = token.message?.toString() ?: "No message"
-            val isComplete = token.isComplete
-
-            logger.d(
-                TAG,
-                "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete",
-            )
-        }
-
-        override fun connectComplete(reconnect: Boolean, serverURI: String?) {
-            logger.d(TAG, "MQTT connected: reconnect=$reconnect, serverURI=$serverURI")
-
-            subscribedTopics.forEach { (topic, qos) ->
-                logger.d(TAG, "MQTT re-subscribing to topic '$topic' with QoS $qos")
-                subscribe(topic, qos)
-            }
-
-            // Execute pending requests
-            pendingRequests.forEach { request -> request() }
-            pendingRequests.clear()
-        }
-
-        override fun authPacketArrived(reasonCode: Int, properties: MqttProperties?) {
-            logger.d(
-                TAG,
-                "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties",
-            )
-        }
-    }
-
     override fun connect(config: MqttConfig) {
         if (isConnected()) {
-            logger.i(TAG, "MQTT is already connected")
-            return
+            logger.i(TAG, "MQTT is already connected, disconnecting for configuration changes")
+            mqttClient.disconnect()
         }
 
         val clientBundle = clientFactory.create(config)
         mqttClient = clientBundle.client
-
-        activeConfig = config
         activeClientId = mqttClient.clientId
 
+        mqttClient.setCallback(object : MqttCallback {
+            override fun disconnected(response: MqttDisconnectResponse?) {
+                logger.e(TAG, "MQTT disconnected! $response")
+                onDisconnectCallback?.invoke(response?.returnCode, response?.reasonString)
+            }
+
+            override fun mqttErrorOccurred(me: MqttException?) {
+                logger.e(TAG, "MQTT unknown error!", me)
+            }
+
+            override fun messageArrived(topic: String, message: MqttMessage) {
+                logger.d(TAG, "MQTT message arrived: topic=$topic, message=$message")
+                onMessageArrivalCallback?.invoke(topic, message.payload)
+            }
+
+            override fun deliveryComplete(token: IMqttToken?) {
+                if (token == null) {
+                    logger.d(TAG, "MQTT delivery complete: token is null")
+                    return
+                }
+
+                val topics = token.topics?.joinToString() ?: "Unknown"
+                val message = token.message?.toString() ?: "No message"
+                val isComplete = token.isComplete
+
+                logger.d(
+                    TAG,
+                    "MQTT delivery complete: topics=[$topics], message=$message, isComplete=$isComplete",
+                )
+            }
+
+            override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                logger.d(TAG, "MQTT connected: reconnect=$reconnect, serverURI=$serverURI")
+
+                // Execute pending requests
+                pendingRequests.forEach { request -> request() }
+                pendingRequests.clear()
+            }
+
+            override fun authPacketArrived(reasonCode: Int, properties: MqttProperties?) {
+                logger.d(
+                    TAG,
+                    "MQTT auth packet arrived: reasonCode=$reasonCode, properties=$properties",
+                )
+            }
+        })
+
         logger.i(TAG, "MQTT connecting to '${config.brokerUrl}' with client '${mqttClient.clientId}'")
-        mqttClient.setCallback(callback)
         mqttClient.connect(clientBundle.options)
-    }
-
-    override fun reconnect(config: MqttConfig) {
-        if (activeConfig != null && config.isSameConfig(activeConfig)) {
-            logger.i(TAG, "MQTT is already connected with the same configuration")
-            return
-        }
-
-        if (isConnected()) {
-            logger.w(TAG, "MQTT is already connected. Disconnecting...")
-            disconnect()
-        }
-
-        logger.i(TAG, "MQTT reconnecting with new configuration")
-        connect(config)
     }
 
     override fun disconnect() {
@@ -167,7 +140,6 @@ class MqttConnectionHandler(
 
         logger.d(TAG, "subscribe: Subscribe to MQTT topic '$topic' with QoS $qos")
         mqttClient.subscribe(topic, qos)
-        subscribedTopics[topic] = qos
     }
 
     override fun unsubscribe(topic: String) {
@@ -179,7 +151,6 @@ class MqttConnectionHandler(
 
         logger.d(TAG, "unsubscribe: Unsubscribe from MQTT topic '$topic'")
         mqttClient.unsubscribe(topic)
-        subscribedTopics.remove(topic)
     }
 
     override fun publish(
