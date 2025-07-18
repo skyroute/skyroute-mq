@@ -24,7 +24,7 @@ import kotlin.math.abs
  * Configuration for establishing an MQTT connection.
  *
  * @property brokerUrl The URL of the MQTT broker, including the host and port.
- * @property clientPrefix The client prefix used to generate unique MQTT client identifier.
+ * @property clientId The client identifier used for the MQTT connection.
  * @property cleanStart Whether to use a clean session. When true, any previous session will be discarded. Otherwise, resume the previous session
  * if one exists and keep it for [sessionExpiryInterval] seconds when [sessionExpiryInterval] > 0.
  * @property sessionExpiryInterval The maximum time (in seconds) that the broker will maintain the session for once the client disconnects.
@@ -45,7 +45,7 @@ import kotlin.math.abs
 @Parcelize
 data class MqttConfig(
     var brokerUrl: String? = null,
-    var clientPrefix: String = DEFAULT_CLIENT_PREFIX,
+    var clientId: String? = null,
     var cleanStart: Boolean = DEFAULT_CLEAN_START,
     var sessionExpiryInterval: Int? = null,
     var connectionTimeout: Int = DEFAULT_CONNECTION_TIMEOUT,
@@ -60,23 +60,16 @@ data class MqttConfig(
 ) : Parcelable {
 
     /**
-     * Generates a unique client identifier for the MQTT connection using the [clientPrefix]
-     * followed by a dash and a securely generated positive random number.
+     * Checks if the provided [MqttConfig] is the same as the current instance.
      *
-     * @return A unique MQTT client ID string.
+     * @param other The [MqttConfig] to compare against.
+     * @return `true` if the configurations are the same, `false` otherwise.
      */
-    val clientId: String
-        get() {
-            val random = abs(SecureRandom().nextLong())
-            val separator = if (clientPrefix.endsWith('-')) "" else "-"
-            return "$clientPrefix$separator$random"
-        }
-
     fun isSameConfig(other: MqttConfig?): Boolean {
         if (other == null) return false
         if (this === other) return true
         return brokerUrl == other.brokerUrl &&
-            clientPrefix == other.clientPrefix &&
+            clientId == other.clientId &&
             cleanStart == other.cleanStart &&
             sessionExpiryInterval == other.sessionExpiryInterval &&
             connectionTimeout == other.connectionTimeout &&
@@ -99,5 +92,18 @@ data class MqttConfig(
         const val DEFAULT_AUTO_RECONNECT_MIN_DELAY = 1
         const val DEFAULT_AUTO_RECONNECT_MAX_DELAY = 120
         const val DEFAULT_MAX_RECONNECT_DELAY = 21600
+
+        /**
+         * Generates a unique client identifier for the MQTT connection using the provided prefix
+         * followed by a dash and a securely generated positive random number.
+         *
+         * @param prefix The prefix to be used in the generated client identifier.
+         * @return A unique MQTT client ID string.
+         */
+        fun generateRandomClientId(prefix: String = DEFAULT_CLIENT_PREFIX): String {
+            val random = abs(SecureRandom().nextLong())
+            val separator = if (prefix.isEmpty() || prefix.endsWith('-')) "" else "-"
+            return "$prefix$separator$random"
+        }
     }
 }

@@ -26,9 +26,7 @@ class MqttConfigTest {
 
     @Test
     fun `clientId should use default prefix when clientPrefix not provided`() {
-        val config = MqttConfig(brokerUrl = "tcp://test")
-        val clientId = config.clientId
-
+        val clientId = MqttConfig.generateRandomClientId()
         val prefixWithHyphen = MqttConfig.DEFAULT_CLIENT_PREFIX + "-"
 
         assertTrue(clientId.startsWith(prefixWithHyphen))
@@ -37,19 +35,18 @@ class MqttConfigTest {
 
     @Test
     fun `clientId should not insert extra hyphen when prefix ends with hyphen`() {
-        val config = MqttConfig(brokerUrl = "tcp://test", clientPrefix = "client-")
-        val clientId = config.clientId
+        val prefix = "client-"
+        val clientId = MqttConfig.generateRandomClientId(prefix)
 
-        assertTrue(clientId.startsWith("client-"))
+        assertTrue(clientId.startsWith(prefix))
         assertEquals(1, clientId.count { it == '-' }) // only one hyphen at end of prefix
     }
 
     @Test
     fun `clientId should generate unique values`() {
         for (i in 1..10) {
-            val config = MqttConfig(brokerUrl = "tcp://test/$i")
-            val clientId1 = config.clientId
-            val clientId2 = config.clientId
+            val clientId1 = MqttConfig.generateRandomClientId()
+            val clientId2 = MqttConfig.generateRandomClientId()
 
             assertTrue(clientId1 != clientId2)
         }

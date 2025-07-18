@@ -45,7 +45,7 @@ class ConfigResolver(
             require(it >= 0) { "$KEY_SESSION_EXPIRY_INTERVAL must be positive or 0" }
         }
 
-        val clientPrefix = metaData.getString(KEY_CLIENT_PREFIX) ?: base.clientPrefix
+        val clientPrefix = metaData.getString(KEY_CLIENT_PREFIX) ?: MqttConfig.DEFAULT_CLIENT_PREFIX
         require(clientPrefix.isNotBlank()) { "$KEY_CLIENT_PREFIX cannot be blank" }
 
         val connectionTimeout = metaData.getInt(KEY_CONNECTION_TIMEOUT, base.connectionTimeout)
@@ -82,7 +82,7 @@ class ConfigResolver(
 
         return base.copy(
             brokerUrl = brokerUrl,
-            clientPrefix = clientPrefix,
+            clientId = MqttConfig.generateRandomClientId(clientPrefix),
             cleanStart = metaData.getBoolean(KEY_CLEAN_START, base.cleanStart),
             sessionExpiryInterval = metaData.getIntOrNull(KEY_SESSION_EXPIRY_INTERVAL) ?: base.sessionExpiryInterval,
             connectionTimeout = connectionTimeout,

@@ -23,6 +23,7 @@ import com.skyroute.core.mqtt.MqttConfig.Companion.DEFAULT_KEEP_ALIVE_INTERVAL
 import com.skyroute.core.mqtt.TlsConfig
 import com.skyroute.core.util.TestLogger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -52,7 +53,8 @@ class ConfigResolverTest {
         val config = ConfigResolver(metaData, logger).resolve()
 
         assertEquals("tcp://localhost:1883", config.brokerUrl)
-        assertEquals(DEFAULT_CLIENT_PREFIX, config.clientPrefix)
+        assertNotNull(config.clientId)
+        assertTrue(config.clientId!!.startsWith(DEFAULT_CLIENT_PREFIX))
         assertEquals(DEFAULT_CLEAN_START, config.cleanStart)
         assertEquals(DEFAULT_CONNECTION_TIMEOUT, config.connectionTimeout)
         assertEquals(DEFAULT_KEEP_ALIVE_INTERVAL, config.keepAliveInterval)

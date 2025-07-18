@@ -90,10 +90,17 @@ class SkyRouteBuilder {
     }
 
     /**
-     * Sets the prefix for generating a unique MQTT client ID.
+     * Sets a unique client ID for the MQTT connection.
      */
-    fun clientPrefix(clientPrefix: String) = apply {
-        this.config.clientPrefix = clientPrefix
+    fun clientId(clientId: String) = apply {
+        this.config.clientId = clientId
+    }
+
+    /**
+     * Generates and sets a unique client ID for the MQTT connection using the provided prefix.
+     */
+    fun randomClientId(prefix: String = MqttConfig.DEFAULT_CLIENT_PREFIX) = apply {
+        this.config.clientId = MqttConfig.generateRandomClientId(prefix)
     }
 
     /**

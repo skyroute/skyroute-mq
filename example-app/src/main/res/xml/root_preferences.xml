@@ -24,10 +24,22 @@
             app:title="Broker URL"
             app:useSimpleSummaryProvider="true" />
 
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="generate_client_id"
+            app:summaryOff="Using the provided Client ID"
+            app:summaryOn="Generate Client ID using the Client Prefix"
+            app:title="Generate Client ID" />
+
         <EditTextPreference
-            app:defaultValue="skyroute"
             app:key="client_prefix"
             app:title="Client Prefix"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:enabled="false"
+            app:key="client_id"
+            app:title="Client ID"
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreferenceCompat

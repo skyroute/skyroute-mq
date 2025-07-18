@@ -20,6 +20,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.Preference.OnPreferenceChangeListener
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
 import com.skyroute.core.mqtt.MqttConfig
 import com.skyroute.example.R
 
@@ -34,6 +35,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         setPreferencesFromResource(R.xml.root_preferences, rootKey)
         originalConfig = SettingsUtils.readConfig(requireContext())?.copy()
         setupTlsPreferences()
+        setupClientIdPreferences()
     }
 
     fun hasChanges(): Boolean = SettingsUtils.readConfig(requireContext()) != originalConfig
@@ -64,6 +66,24 @@ class SettingsFragment : PreferenceFragmentCompat() {
         updateTlsFields(tlsMode.value ?: "none")
         tlsMode.onPreferenceChangeListener = OnPreferenceChangeListener { _, newValue ->
             updateTlsFields(newValue as String)
+            true
+        }
+    }
+
+    private fun setupClientIdPreferences() {
+        val useClientId = findPreference<SwitchPreferenceCompat>("generate_client_id") ?: return
+
+        val updateClientIdFields: (Boolean) -> Unit = { generateClientId ->
+            val clientIdPref = findPreference<Preference>("client_id")
+            val clientPrefixPref = findPreference<Preference>("client_prefix")
+
+            clientIdPref?.isEnabled = !generateClientId
+            clientPrefixPref?.isEnabled = generateClientId
+        }
+
+        updateClientIdFields(useClientId.isChecked)
+        useClientId.onPreferenceChangeListener = OnPreferenceChangeListener { _, newValue ->
+            updateClientIdFields(newValue as Boolean)
             true
         }
     }

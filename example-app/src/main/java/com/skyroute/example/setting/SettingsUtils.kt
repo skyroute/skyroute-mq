@@ -38,9 +38,17 @@ object SettingsUtils {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val brokerUrl = prefs.getString("broker_url", null) ?: return null
 
+        val generateClientId = prefs.getBoolean("generate_client_id", false)
+        val clientId = if (generateClientId) {
+            val clientPrefix = prefs.getString("client_prefix", DEFAULT_CLIENT_PREFIX) ?: DEFAULT_CLIENT_PREFIX
+            MqttConfig.generateRandomClientId(clientPrefix)
+        } else {
+            prefs.getString("client_id", null)
+        }
+
         return MqttConfig(
             brokerUrl = brokerUrl,
-            clientPrefix = prefs.getString("client_prefix", DEFAULT_CLIENT_PREFIX) ?: DEFAULT_CLIENT_PREFIX,
+            clientId = clientId,
             cleanStart = prefs.getBoolean("clean_start", DEFAULT_CLEAN_START),
             sessionExpiryInterval = prefs.getString("session_expiry_interval", null)?.toIntOrNull() ?: 0,
             connectionTimeout = prefs.getString("connection_timeout", null)?.toIntOrNull() ?: DEFAULT_CONNECTION_TIMEOUT,

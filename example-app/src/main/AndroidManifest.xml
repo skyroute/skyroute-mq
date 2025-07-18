@@ -46,7 +46,7 @@
         <service android:name="com.skyroute.service.SkyRouteService">
             <meta-data
                 android:name="mqttBrokerUrl"
-                android:value="tcp://broker.hivemq.com:1883" />
+                android:value="tcp://broker.emqx.io:1883" />
             <meta-data
                 android:name="clientPrefix"
                 android:value="skyroute-sample" />

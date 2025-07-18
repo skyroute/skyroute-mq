@@ -51,10 +51,11 @@ class SampleApplication : Application() {
     private fun customSkyRoute(): SkyRoute? {
         val config = SettingsUtils.readConfig(this) ?: return null
         val brokerUrl = config.brokerUrl ?: return null
+        val clientId = config.clientId ?: return null
 
         return SkyRoute.newBuilder()
             .brokerUrl(brokerUrl)
-            .clientPrefix(config.clientPrefix)
+            .clientId(clientId)
             .cleanStart(config.cleanStart)
             .sessionExpiryInterval(config.sessionExpiryInterval)
             .connectionTimeout(config.connectionTimeout)
