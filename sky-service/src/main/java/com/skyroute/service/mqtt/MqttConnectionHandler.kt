@@ -54,7 +54,7 @@ class MqttConnectionHandler(
     override fun connect(config: MqttConfig) {
         if (isConnected()) {
             logger.i(TAG, "MQTT is already connected, disconnecting for configuration changes")
-            mqttClient.disconnect()
+            disconnect()
         }
 
         val clientBundle = clientFactory.create(config)

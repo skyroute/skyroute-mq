@@ -20,6 +20,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.IBinder
 import com.skyroute.api.util.TopicUtils.extractWildcards
 import com.skyroute.core.mqtt.MqttConfig
@@ -143,11 +144,20 @@ class SkyRoute internal constructor(
         logger.i(TAG, "SkyRoute init...")
         ServiceRegistry.initLogger(builder.logger)
 
-        context.applicationContext.run { // Using application context to avoid memory leaks
-            val intent = Intent(this, SkyRouteService::class.java)
-            intent.putExtra(SkyRouteService.EXTRA_CONFIG, builder.config)
-            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        val appContext = context.applicationContext
+
+        val component = ComponentName(appContext, SkyRouteService::class.java)
+        appContext.packageManager.setComponentEnabledSetting(
+            component,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+
+        val intent = Intent(appContext, SkyRouteService::class.java).apply {
+            putExtra(SkyRouteService.EXTRA_CONFIG, builder.config)
         }
+
+        appContext.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     /**
@@ -184,14 +194,13 @@ class SkyRoute internal constructor(
      * @param subscriber The subscriber object that has methods annotated with [Subscribe].
      */
     fun register(subscriber: Any) {
-        if (bound && mqttHandler?.isConnected() == true) {
-            subscriberManager.registerSubscriber(subscriber)
-        } else {
+        if (!bound) {
             logger.i(TAG, "Service not yet bound. Queuing subscriber: ${subscriber::class.java.name}")
             synchronized(pendingRegistrations) {
                 pendingRegistrations.add(subscriber)
             }
         }
+        subscriberManager.registerSubscriber(subscriber)
     }
 
     /**

@@ -70,7 +70,6 @@ class SkyRouteService : Service() {
                 socketFactory = MqttSocketFactory(this),
             ),
         )
-        mqttHandler.connect(config)
     }
 
     /**
@@ -93,19 +92,7 @@ class SkyRouteService : Service() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         logger.d(TAG, "Starting SkyRouteService! startId=$startId, intent=$intent")
-
-        val newConfig = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent?.getParcelableExtra(EXTRA_CONFIG, MqttConfig::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent?.getParcelableExtra(EXTRA_CONFIG)
-        }
-
-        if (newConfig != null && !newConfig.isSameConfig(config)) {
-            logger.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
-            mqttHandler.connect(newConfig)
-        }
-
+        handleIntentConfig(intent)
         return START_STICKY
     }
 
@@ -115,7 +102,26 @@ class SkyRouteService : Service() {
      * @param intent The intent used to bind the service.
      * @return A [SkyRouteBinder] instance that allows the client to interact with the service.
      */
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder {
+        logger.d(TAG, "Binding SkyRouteService! intent=$intent")
+        handleIntentConfig(intent)
+        return binder
+    }
+
+    private fun handleIntentConfig(intent: Intent?) {
+        val newConfig = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_CONFIG, MqttConfig::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_CONFIG)
+        }
+
+        if (newConfig != null && !newConfig.isSameConfig(config)) {
+            logger.w(TAG, "Custom SkyRoute builder config found, config in 'AndroidManifest.xml' will be replaced")
+            config = newConfig
+        }
+        mqttHandler.connect(config)
+    }
 
     inner class SkyRouteBinder : Binder() {
 

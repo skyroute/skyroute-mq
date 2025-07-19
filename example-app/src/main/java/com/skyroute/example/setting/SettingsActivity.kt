@@ -15,12 +15,16 @@
  */
 package com.skyroute.example.setting
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.skyroute.example.R
-import com.skyroute.example.SampleApplication.Companion.skyRoute
 import com.skyroute.example.databinding.ActivitySettingsBinding
+import kotlin.system.exitProcess
 
 /**
  * @author Andre Suryana
@@ -65,19 +69,30 @@ class SettingsActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.dialog_save_settings_title))
             .setMessage(getString(R.string.dialog_save_settings_msg))
-            .setPositiveButton(getString(R.string.action_apply)) { _, _ -> applyChanges() }
-            .setNegativeButton(getString(R.string.action_cancel)) { _, _ -> revertChanges() }
+            .setPositiveButton(getString(R.string.action_restart)) { _, _ -> restartApp() }
+            .setNegativeButton(getString(R.string.action_later)) { _, _ -> finish() }
             .show()
     }
 
-    private fun applyChanges() {
-        SettingsUtils.readConfig(this)?.let { config ->
-            skyRoute.applyConfig(config)
+    private fun restartApp() {
+        val intent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        finish()
-    }
 
-    private fun revertChanges() {
-        recreate()
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT,
+        )
+
+        val alarmManager = applicationContext.getSystemService(Service.ALARM_SERVICE) as AlarmManager
+        alarmManager.set(
+            AlarmManager.RTC,
+            System.currentTimeMillis() + 100,
+            pendingIntent,
+        )
+
+        exitProcess(0)
     }
 }
