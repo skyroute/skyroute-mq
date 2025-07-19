@@ -1,4 +1,4 @@
-name: 🛡️ Pull Request Checks – Build & Test
+name: 🛡️ Verification - Build & Test
 
 on:
   push:
