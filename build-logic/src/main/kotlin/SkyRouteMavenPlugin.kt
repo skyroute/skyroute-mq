@@ -2,17 +2,27 @@ import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import com.vanniktech.maven.publish.SonatypeHost
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.plugins.JavaPluginExtension
 
 class SkyRouteMavenPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
         project.pluginManager.apply("com.vanniktech.maven.publish")
 
+        project.extensions.findByType(JavaPluginExtension::class.java)?.apply {
+            withJavadocJar()
+            withSourcesJar()
+        }
+
         project.extensions.configure(MavenPublishBaseExtension::class.java) {
             publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
             signAllPublications()
 
-            coordinates(project.rootProject.group.toString(), project.name, project.rootProject.version.toString())
+            coordinates(
+                project.rootProject.group.toString(),
+                project.name,
+                project.rootProject.version.toString()
+            )
 
             pom {
                 name.set("SkyRouteMQ")
